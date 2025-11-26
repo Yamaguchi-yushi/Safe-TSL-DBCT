@@ -1449,14 +1449,14 @@ class DrpEnv(gym.Env):
 
 					if self.use_lare_training and lare_reward is not None:
 						ri = lare_reward
-						self._log(f"   {i}: LARE={ri:.6f} ({memory_rewards[i]}) ({pos_str})" )
+						self._log(f"   {i}: LARE={ri:.6f} ({memory_rewards[i]}) {pos_str}" )
 					else:
 						# LARE報酬システムが失敗した場合のみ衝突報酬を使用
 						ri = collision_reward
 						if lare_reward is not None:
-							self._log(f"   {i}: TRAD={ri}, LARE({lare_reward:.6f}) ({pos_str})")
+							self._log(f"   {i}: TRAD={ri}, LARE({lare_reward:.6f}) {pos_str}")
 						else:
-							print(f" ⚠️  {i}: TRAD={ri}, LARE failed ({pos_str})")
+							print(f" ⚠️  {i}: TRAD={ri}, LARE failed {pos_str}")
         
 					ri_array.append(ri)
 			else:
@@ -1477,7 +1477,7 @@ class DrpEnv(gym.Env):
 
 			memory_rewards = []
 			
-			self._log(f" [REWARDS] Step {self.step_account}")
+			self._log(f" Step {self.step_account}")
 			
 			for i in range(self.agent_num):
 				traditional_reward = self.reward(i)
@@ -1490,14 +1490,14 @@ class DrpEnv(gym.Env):
 					lare_reward = self._call_lare_reward_system(i, next_obs=None)
 					if self.use_lare_training and lare_reward is not None:
 						ri = lare_reward
-						self._log(f"   {i}: LARE={ri:.6f}({traditional_reward}) ({pos_str})" )
+						self._log(f"   {i}: LARE={ri:.6f}({traditional_reward}) {pos_str}" )
 					else:
 						# LARE報酬システムが失敗した場合は従来の報酬を使用
 						ri = traditional_reward
 						if lare_reward is not None:
-							self._log(f"   {i}: TRAD={ri}, LARE({lare_reward:.6f}) ({pos_str})")
+							self._log(f"   {i}: TRAD={ri}, LARE({lare_reward:.6f}) {pos_str}")
 						else:
-							print(f" ⚠️  {i}: TRAD={ri}, LARE failed ({pos_str})")
+							print(f" ⚠️  {i}: TRAD={ri}, LARE failed {pos_str}")
 				else:
 					# 従来の報酬システムを使用
 					ri = traditional_reward
@@ -1600,7 +1600,7 @@ class DrpEnv(gym.Env):
 			# ゴールノードの取得
 			goal_node = self.goal_array[agent_id] if hasattr(self, 'goal_array') else '?'
 
-			if prev_node is not None and curr_node is not None:
+			if prev_node is None or curr_node is None:
 				return f"?({goal_node})"
 			
 			if prev_node == curr_node:
