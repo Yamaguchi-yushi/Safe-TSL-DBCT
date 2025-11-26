@@ -1445,16 +1445,18 @@ class DrpEnv(gym.Env):
 				# 修正箇所: _call_lare_reward_system の呼び出し
 				for i in range(self.agent_num):
 					lare_reward = self._call_lare_reward_system(i, next_obs=None)
+					pos_str = self._get_position_transition_str(i)
+
 					if self.use_lare_training and lare_reward is not None:
 						ri = lare_reward
-						self._log(f"   {i}: LARE = {ri:.6f} ({memory_rewards[i]})")
+						self._log(f"   {i}: LARE={ri:.6f} ({memory_rewards[i]}) ({pos_str})" )
 					else:
 						# LARE報酬システムが失敗した場合のみ衝突報酬を使用
 						ri = collision_reward
 						if lare_reward is not None:
-							self._log(f"   {i}: TRAD = {ri}, LARE({lare_reward:.6f})")
+							self._log(f"   {i}: TRAD={ri}, LARE({lare_reward:.6f}) ({pos_str})")
 						else:
-							print(f" ⚠️  {i}: TRAD = {ri}, LARE failed")
+							print(f" ⚠️  {i}: TRAD={ri}, LARE failed ({pos_str})")
         
 					ri_array.append(ri)
 			else:
@@ -1480,6 +1482,7 @@ class DrpEnv(gym.Env):
 			for i in range(self.agent_num):
 				traditional_reward = self.reward(i)
 				memory_rewards.append(traditional_reward)
+				pos_str = self._get_position_transition_str(i)
 
 				# LARE報酬システムを使用するかどうかで分岐
 				if self.use_lare_reward and hasattr(self, 'lare_decompose') and self.lare_decompose is not None:
@@ -1487,14 +1490,14 @@ class DrpEnv(gym.Env):
 					lare_reward = self._call_lare_reward_system(i, next_obs=None)
 					if self.use_lare_training and lare_reward is not None:
 						ri = lare_reward
-						self._log(f"   {i}: LARE = {ri:.6f}({traditional_reward})" )
+						self._log(f"   {i}: LARE={ri:.6f}({traditional_reward}) ({pos_str})" )
 					else:
 						# LARE報酬システムが失敗した場合は従来の報酬を使用
 						ri = traditional_reward
 						if lare_reward is not None:
-							self._log(f"   {i}: TRAD = {ri}, LARE({lare_reward:.6f})")
+							self._log(f"   {i}: TRAD={ri}, LARE({lare_reward:.6f}) ({pos_str})")
 						else:
-							print(f" ⚠️  {i}: TRAD = {ri}, LARE failed")
+							print(f" ⚠️  {i}: TRAD={ri}, LARE failed ({pos_str})")
 				else:
 					# 従来の報酬システムを使用
 					ri = traditional_reward
@@ -1561,51 +1564,52 @@ class DrpEnv(gym.Env):
 
 		info["distance_from_start"] = list(self.distance_from_start)
 
-		self.display_onehot_vectors()
-
 		return obs, ri_array, self.terminated, info
 
-	def display_onehot_vectors(self):
-		"""全エージェントのobs_onehotベクトルと状態変化を表示"""
-		
-		for i in range(self.agent_num):
-			try:
-				# --- 現在の状態 ---
-				if hasattr(self, 'obs_onehot') and self.obs_onehot is not None:
-					if len(self.obs_onehot[i].shape) == 2:
-						agent_onehot = self.obs_onehot[i].flatten()
-					else:
-						agent_onehot = self.obs_onehot[i]
-					
-					current_pos_part = agent_onehot[:self.n_nodes]
-					curr_indices = np.where(current_pos_part != 0)[0]
-					curr_values = current_pos_part[curr_indices]
+	def _get_position_transition_str(self, agent_id):
+		"""
+		エージェントの位置遷移を文字列で返す
+
+		Args:
+			agent_id (int): エージェントのID
+		Returns:
+			str: "14→15" または "22" のような形式の位置遷移文字列
+		"""
+		try:
+			prev_node = None
+			if hasattr(self, 'obs_onehot_position_cache') and self.obs_onehot_position_cache is not None:
+				prev_part = self.obs_onehot_position_cache[agent_id]
+				prev_indices = np.where(prev_part != 0)[0]
+				if len(prev_indices) >= 1:
+					prev_node = prev_indices[np.argmax(prev_part[prev_indices])]
+				
+			curr_node = None
+			if hasattr(self, 'obs_onehot') and self.obs_onehot is not None:
+				if len(self.obs_onehot[agent_id].shape) == 2:
+					agent_onehot = self.obs_onehot[agent_id].flatten()
 				else:
-					curr_indices, curr_values = [], []
+					agent_onehot = self.obs_onehot[agent_id]
 
-				# --- 前の状態 ---
-				if hasattr(self, 'obs_onehot_position_cache') and self.obs_onehot_position_cache is not None:
-					previous_pos_part = self.obs_onehot_position_cache[i]
-					prev_indices = np.where(previous_pos_part != 0)[0]
-					prev_values = previous_pos_part[prev_indices]
-				else:
-					prev_indices, prev_values = [], []
+				curr_part = agent_onehot[:self.n_nodes]
+				curr_indices = np.where(curr_part != 0)[0]
+				if len(curr_indices) == 1:
+					curr_node = curr_indices[0]
+				if len(curr_indices) >= 2:
+					curr_node = curr_indices[np.argmin(curr_part[curr_indices])]
 
-				# --- 状態変化の判定と表示 ---
-				state_changed = not np.array_equal(previous_pos_part, current_pos_part)
-				change_indicator = "🔄 CHANGED" if state_changed else "➡️ UNCHANGED"
+			# ゴールノードの取得
+			goal_node = self.goal_array[agent_id] if hasattr(self, 'goal_array') else '?'
 
-				# --- ゴールノードの取得 ---
-				goal_node = self.goal_array[i] if hasattr(self, 'goal_array') else 'N/A'
-
-				self._log(f"  Agent {i}: {change_indicator} (Goal: {goal_node})")
-				self._log(f"    - Prev: indices={prev_indices}, values={np.round(prev_values, 2)}")
-				self._log(f"    - Curr: indices={curr_indices}, values={np.round(curr_values, 2)}")
-
-			except Exception as e:
-				print(f"  Agent {i}: Error - {e}")
-		
-		self._log("")  # 空行を追加
+			if prev_node is not None and curr_node is not None:
+				return f"?({goal_node})"
+			
+			if prev_node == curr_node:
+				return f"{curr_node}({goal_node})"
+			else:
+				return f"{prev_node}→{curr_node}({goal_node})"
+			
+		except Exception as e:
+			return f"Error({e})"
 
 	def reward(self, i):
 		pre_pos_agenti = [self.obs_current_chache[i][0],self.obs_current_chache[i][1]]
