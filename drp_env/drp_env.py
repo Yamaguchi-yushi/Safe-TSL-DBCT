@@ -1529,10 +1529,11 @@ class DrpEnv(gym.Env):
 			
 			else:
 				pass
-
-			self.current_state = {
-				agent_id: self._get_lare_compatible_obs(agent_id) for agent_id in range(self.agent_num)
-			}
+			
+			if self.use_lare_reward:
+				self.current_state = {
+					agent_id: self._get_lare_compatible_obs(agent_id) for agent_id in range(self.agent_num)
+				}
 
 			obs = self.obs_manager.calc_obs()
 
