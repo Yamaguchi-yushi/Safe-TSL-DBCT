@@ -1,0 +1,100 @@
+import numpy as np
+
+def evaluation_func(observation, eps=1e-6):
+    """
+    DRP（Drone Routing Problem）の観測データから
+    各種評価指標を計算して返します。
+
+    Args:
+        observation (np.ndarray): 形状 (B, 524) のバッチ観測データ
+        eps (float): 0除算を避けるための小さな定数
+
+    Returns:
+        List[np.ndarray]: 形状 (B,1) の評価指標リスト
+          [
+            dist_goal,          # ゴールまでの距離
+            prog_goal,          # 前ステップ比でのゴール距離の減少量
+            at_goal,            # ゴール到達フラグ
+            min_sep,            # 他エージェントとの最小分離距離
+            avg_sep,            # 他エージェントとの平均分離距離
+            sep_var,            # 分離距離の分散
+            safety_margin,      # 安全余裕率 (min_sep / collision_dis)
+            collision_count,    # 衝突閾値以内にいるエージェント数
+            collision_risk,     # 衝突リスクフラグ (min_sep < collision_dis)
+            wait_norm,          # 連続待機ステップ数
+            in_collision,       # 自身の衝突フラグ（提供データ）
+            others_in_collision # 他者の衝突発生フラグ（提供データ）
+          ]
+    """
+    B = observation.shape[0]
+
+    # ---- 1. 各部分を切り出し ----
+    own_prev       = observation[:,   0:40]       # 自身の前ステップ位置 (40d)
+    own_curr       = observation[:,  40:80]       # 自身の現在位置   (40d)
+    goal           = observation[:,  80:120]      # ゴール位置       (40d)
+    others_block   = observation[:, 120:440]      # 他4エージェントの前後位置 (4×80d)
+    collision_dis  = observation[:, 440].reshape(B,1)   # 衝突距離閾値
+    collision_info = observation[:, 441:443]      # [自身衝突, 他者衝突]
+    wait_count     = observation[:, 443].reshape(B,1)   # 連続待機カウント
+    nodes_flat     = observation[:, 444:524]      # ノード座標 Flatten (40×2=80d)
+
+    # ---- 2. ノード座標を (B, 40, 2) に変形 ----
+    nodes = nodes_flat.reshape(B, 40, 2)
+
+    # ---- 3. 連続位置を計算 ----
+    #   one-hot/soft ベクトル × ノード座標 の重み付き和
+    agent_prev_pos = np.einsum('bi,bij->bj', own_prev, nodes)  # (B,2)
+    agent_curr_pos = np.einsum('bi,bij->bj', own_curr, nodes)  # (B,2)
+    goal_pos       = np.einsum('bi,bij->bj', goal,     nodes)  # (B,2)
+
+    # 他エージェントも同様に前後を分離して連続位置を計算
+    others = others_block.reshape(B, 4, 80)
+    others_prev = others[:, :, 0:40]
+    others_curr = others[:, :, 40:80]
+    others_prev_pos = np.einsum('bij,bjk->bik', others_prev, nodes)  # (B,4,2)
+    others_curr_pos = np.einsum('bij,bjk->bik', others_curr, nodes)  # (B,4,2)
+
+    # ---- 4. ゴール距離と進捗 ----
+    dist_goal      = np.linalg.norm(agent_curr_pos - goal_pos,     axis=1, keepdims=True)
+    dist_goal_prev = np.linalg.norm(agent_prev_pos - goal_pos,     axis=1, keepdims=True)
+    prog_goal      = dist_goal_prev - dist_goal   # 正ならゴールに近づいた
+    at_goal        = (dist_goal < eps).astype(float)
+
+    # ---- 5. 他エージェントとの分離距離 ----
+    sep = np.linalg.norm(
+        agent_curr_pos[:, None, :] - others_curr_pos,
+        axis=2
+    )  # (B,4)
+    min_sep = np.min(sep, axis=1, keepdims=True)
+    avg_sep = np.mean(sep, axis=1, keepdims=True)
+    sep_var = np.var(sep, axis=1, keepdims=True)
+
+    # ---- 6. 安全余裕・衝突指標 ----
+    safety_margin   = min_sep / (collision_dis + eps)
+    collision_count = (sep < collision_dis).sum(axis=1, keepdims=True).astype(float)
+    collision_risk  = (min_sep < collision_dis).astype(float)
+
+    # ---- 7. 待機カウント ----
+    wait_norm = wait_count.astype(float)
+
+    # ---- 8. 提供衝突情報の利用 ----
+    in_collision        = collision_info[:, 0].reshape(B,1)
+    others_in_collision = collision_info[:, 1].reshape(B,1)
+
+    # ---- 9. 結果をリストで返す ----
+    return [
+        dist_goal,
+        prog_goal,
+        at_goal,
+        min_sep,
+        avg_sep,
+        sep_var,
+        safety_margin,
+        collision_count,
+        collision_risk,
+        wait_norm,
+        in_collision,
+        others_in_collision
+    ]
+
+FACTOR_NUMBER = 12  # 評価指標の数
