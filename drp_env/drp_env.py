@@ -537,30 +537,8 @@ class DrpEnv(gym.Env):
 		node_coordinates = self.get_node_coordinates_flat_array()
 
 		# 8. Edge information (flat array)
-		# edge_info = self.get_all_edge_info_flat()
-
-		edge_info = []
-		for edge in sorted(self.G.edges(data=True)):
-			from_node = edge[0]
-			to_node = edge[1]
-
-			if from_node >= self.n_nodes or to_node >= self.n_nodes:
-				print(f"❌ [DEBUG] Edge nodes out of bounds: from_node={from_node}, to_node={to_node}, n_nodes={self.n_nodes}")
-				continue
-
-			if 'weight' in edge[2]:
-				distance = edge[2]['weight']
-			elif 'distance' in edge[2]:
-				distance = edge[2]['distance']
-			else:
-				pos_from = np.array(self.G.nodes[from_node]['pos'])
-				pos_to = np.array(self.G.nodes[to_node]['pos'])
-				distance = np.linalg.norm(pos_from - pos_to)
-			
-			edge_info.extend([int(from_node), int(to_node), float(distance)])
-		
-		edge_info = np.array(edge_info)
-		n_edges = len(edge_info)
+		# edge_info = self.get_all_edge_info_flat()		edge_info = n
+		edge_info = self.edge_info_cache
 
 		# 9. Graph diameter (single value)
 		graph_diameter = np.array([self.graph_diameter])
