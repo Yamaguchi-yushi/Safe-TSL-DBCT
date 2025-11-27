@@ -25,9 +25,9 @@ class DrpEnv(gym.Env):
 			collision,
 			map_name="map_3x3",
 			reward_list={"goal": 100, "collision": -10, "wait": -10, "move": -1},
-			use_lare_reward = True,			# LaReを学習に使うか
-			use_lare_training = True,			# Falseの場合はLARE報酬でNN学習、Q値は従来報酬で学習、Trueの場合はLARE報酬でNN学習、Q値もLARE報酬で学習
-			use_pretrained_model = True,		# 事前学習モデルを使うか
+			use_lare_reward = False,			# LaReを学習に使うか
+			use_lare_training = False,			# Falseの場合はLARE報酬でNN学習、Q値は従来報酬で学習、Trueの場合はLARE報酬でNN学習、Q値もLARE報酬で学習
+			use_pretrained_model = False,		# 事前学習モデルを使うか
 			use_separete_memory = False,			# 分離メモリを使うか
 			save_logs_to_file = False,			# ログをファイルに保存するか　falseの場合はコンソールに出力のみ
 			opened_log_file = None,				# ログファイルのハンドル（ファイルに保存する場合のみ指定)
@@ -659,7 +659,7 @@ class DrpEnv(gym.Env):
 		
 		return np.array(other_agents_locations)
 	
-	def _call_lare_reward_system(self, agent_id, next_obs=None):
+	def _call_lare_reward_system(self, agent_id, next_obs=None, use_cache=False):
 		"""
 		Calls the LARE reward decomposition system to get the reward for the given observation.
 		Also handles goal checking when LARE is active.
@@ -675,7 +675,7 @@ class DrpEnv(gym.Env):
 		if not self.use_lare_reward or not hasattr(self, 'lare_decompose') or self.lare_decompose is None:
 			return None
 		
-		# 💥 追加: LARE利用時のゴール到達判定
+		# LARE利用時のゴール到達判定
 		if not self.terminated[agent_id]:
 			pre_pos_agenti = [self.obs_current_chache[agent_id][0], self.obs_current_chache[agent_id][1]]
 			pos_agenti = [self.obs[agent_id][0], self.obs[agent_id][1]]
@@ -687,8 +687,13 @@ class DrpEnv(gym.Env):
 				print(f"  🎯 Agent {agent_id}: GOAL REACHED! (LARE mode, Total: {self.reach_account})")
 
 		try:
-			# 現在の観測を取得
-			current_obs = self._get_lare_compatible_obs(agent_id)
+			if use_cache and hasattr(self, 'current_state') and self.current_state is not None:
+				current_obs = self.current_state.get(agent_id)
+				if current_obs is None:
+					current_obs = self._get_lare_compatible_obs(agent_id)
+			else:
+				# 現在の観測を取得
+				current_obs = self._get_lare_compatible_obs(agent_id)
 			
 			# 次の観測が提供されていない場合は現在の観測を使用
 			if next_obs is None:
@@ -1438,13 +1443,27 @@ class DrpEnv(gym.Env):
 			
 			# LARE報酬システムが有効な場合は衝突報酬を無視
 			if self.use_lare_reward and hasattr(self, 'lare_decompose') and self.lare_decompose is not None:
+
+				obs_backup = self.obs
+				onehot_backup = copy.deepcopy(self.obs_onehot)
+
+				self.obs = tuple([np.array(j) for j in self.obs_prepare])
+				self.obs_onehot = copy.deepcopy(self.obs_onehot_prepare)
+
+				self.current_state = {
+					agent_id: self._get_lare_compatible_obs(agent_id) for agent_id in range(self.agent_num)
+				}
+
+				self.obs = obs_backup
+				self.obs_onehot = onehot_backup
+
 				# LARE報酬システムを使用している場合は各エージェントのLARE報酬を計算
 				ri_array = []
 				print(f"🔴 [COLLISION] Step {self.step_account}: Using LARE rewards with collision info")
 				
 				# 修正箇所: _call_lare_reward_system の呼び出し
 				for i in range(self.agent_num):
-					lare_reward = self._call_lare_reward_system(i, next_obs=None)
+					lare_reward = self._call_lare_reward_system(i, next_obs=None, use_cache=True)
 					pos_str = self._get_position_transition_str(i)
 
 					if self.use_lare_training and lare_reward is not None:
@@ -1474,8 +1493,13 @@ class DrpEnv(gym.Env):
 
 			team_reward = 0
 			ri_array = []
-
 			memory_rewards = []
+
+			if self.use_lare_reward:
+				self.current_state = {
+					agent_id: self._get_lare_compatible_obs(agent_id) for agent_id in range(self.agent_num)
+				}
+			
 			
 			self._log(f" Step {self.step_account}")
 			
@@ -1487,7 +1511,7 @@ class DrpEnv(gym.Env):
 				# LARE報酬システムを使用するかどうかで分岐
 				if self.use_lare_reward and hasattr(self, 'lare_decompose') and self.lare_decompose is not None:
 					# LARE報酬システムを使用
-					lare_reward = self._call_lare_reward_system(i, next_obs=None)
+					lare_reward = self._call_lare_reward_system(i, next_obs=None, use_cache=True)
 					if self.use_lare_training and lare_reward is not None:
 						ri = lare_reward
 						self._log(f"   {i}: LARE={ri:.6f}({traditional_reward}) {pos_str}" )
@@ -1530,10 +1554,6 @@ class DrpEnv(gym.Env):
 			else:
 				pass
 			
-			if self.use_lare_reward:
-				self.current_state = {
-					agent_id: self._get_lare_compatible_obs(agent_id) for agent_id in range(self.agent_num)
-				}
 
 			obs = self.obs_manager.calc_obs()
 
