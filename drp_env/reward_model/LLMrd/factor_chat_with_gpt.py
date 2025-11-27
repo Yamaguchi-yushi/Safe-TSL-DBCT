@@ -97,7 +97,7 @@ def load_fallback_function(map_name, agent_num):
         os.path.dirname(os.path.abspath(__file__)), 'fallback_functions'
     )
 
-    filename = f'{map_name}_{agent_num}agents.py'
+    filename = f'evaluation_func.py'
     filepath = os.path.join(fallback_dir, filename)
 
     print(f"🔍 [FALLBACK] Searching for fallback function:")

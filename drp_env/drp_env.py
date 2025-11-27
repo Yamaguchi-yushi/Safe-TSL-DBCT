@@ -25,14 +25,17 @@ class DrpEnv(gym.Env):
 			collision,
 			map_name="map_3x3",
 			reward_list={"goal": 100, "collision": -10, "wait": -10, "move": -1},
-			use_lare_reward = False,			# LaReを学習に使うか
-			use_lare_training = False,			# Falseの場合はLARE報酬でNN学習、Q値は従来報酬で学習、Trueの場合はLARE報酬でNN学習、Q値もLARE報酬で学習
+			use_lare_reward = True,			# LaReを学習に使うか
+			use_lare_training = True,			# Falseの場合はLARE報酬でNN学習、Q値は従来報酬で学習、Trueの場合はLARE報酬でNN学習、Q値もLARE報酬で学習
 			use_pretrained_model = False,		# 事前学習モデルを使うか
 			use_separete_memory = False,			# 分離メモリを使うか
-			save_logs_to_file = False,			# ログをファイルに保存するか　falseの場合はコンソールに出力のみ
+			save_logs_to_file = False,			# ログをファイルに保存するか　falseの場合はコンソールに出力
 			opened_log_file = None,				# ログファイルのハンドル（ファイルに保存する場合のみ指定)
 			use_finetuning = False,			# 事前学習モデルを追加学習するか
-			finetuning_model_path = None		# 追加学習に使う事前学習モデルのパス
+			finetuning_model_path = None,		# 追加学習に使う事前学習モデルのパス
+			finetuning_algorithm = "QMIX",
+			finetuning_map_name = "map_8x5",
+			finetuning_agent_num = 3,
 		  ):
 		
 		self.agent_num = agent_num
@@ -243,6 +246,16 @@ class DrpEnv(gym.Env):
 					else:
 						print(f"❌  [PRETRAINED] Failed to load pretrained reward model.")
 						self.use_pretrained_model = False
+				elif self.use_finetuning:
+					print(f"🔍  [FINETUNE] Attempting to load finetuning model from: {self.finetuning_model_path}")
+					load_success = self.load_finetuning_lare_model()
+
+					if load_success:
+						print(f"✅  [FINETUNE] Successfully loaded finetuning model.")
+						print(f"ℹ️  [FINETUNE] Model will be further trained.")
+					else:
+						print(f"❌  [FINETUNE] Failed to load finetuning model.")
+						self.use_finetuning = False					
 				else:
 					print(f"ℹ️  [PRETRAINED] Starting fresh training (use_pretrained_model=False)")
 			else:
@@ -303,6 +316,20 @@ class DrpEnv(gym.Env):
 			import traceback
 			print(f"🔍  [PRETRAINED] Full traceback: {traceback.format_exc()}")
 			return False
+
+	def load_finetuning_lare_model(self):
+		"""
+		ファインチューニング用にモデルをロードする
+		事前学習モデルの重みをロードし、学習を継続できる状態にする
+
+		Returns:
+			bool: True if the model was loaded successfully, False otherwise.
+		"""
+		# try:
+		# 	if self.finetuning_model_path is not None:
+		# 		model_path = self.finetuning_model_path
+		# 	else:
+		# 		base_dir = os
 
 	def load_max_steps_from_config(self):
 		"""
