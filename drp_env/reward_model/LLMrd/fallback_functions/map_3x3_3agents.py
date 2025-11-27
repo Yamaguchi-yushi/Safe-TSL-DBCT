@@ -71,8 +71,8 @@ def evaluation_func(observation, eps=1e-6):
         sep_var,
         safety_margin,
         collision_count,
-        collision_risk,
-        at_goal
+        #collision_risk,
+        #at_goal
     ]
 
 FACTOR_NUMBER = 12  # 評価指標の数

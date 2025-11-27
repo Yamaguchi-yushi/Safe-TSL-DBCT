@@ -154,7 +154,11 @@ class DrpEnv(gym.Env):
 									1 + # wait count
 									env_instance.n_nodes * 2 + # node corrdinates [x, y]
 									n_edges * 3 + # edge information [from, to, distance]
-									1)  # graph diameter
+									1 + # graph diameter
+									1 + # node_num
+									1 + # agent_num
+									1   # edge_num
+									)  
 					
 					# LARE specific parameters
 					self.only_s = False 				# whether to use only state representation
@@ -533,10 +537,38 @@ class DrpEnv(gym.Env):
 		node_coordinates = self.get_node_coordinates_flat_array()
 
 		# 8. Edge information (flat array)
-		edge_info = self.get_all_edge_info_flat()
+		# edge_info = self.get_all_edge_info_flat()
+
+		edge_info = []
+		for edge in sorted(self.G.edges(data=True)):
+			from_node = edge[0]
+			to_node = edge[1]
+
+			if from_node >= self.n_nodes or to_node >= self.n_nodes:
+				print(f"❌ [DEBUG] Edge nodes out of bounds: from_node={from_node}, to_node={to_node}, n_nodes={self.n_nodes}")
+				continue
+
+			if 'weight' in edge[2]:
+				distance = edge[2]['weight']
+			elif 'distance' in edge[2]:
+				distance = edge[2]['distance']
+			else:
+				pos_from = np.array(self.G.nodes[from_node]['pos'])
+				pos_to = np.array(self.G.nodes[to_node]['pos'])
+				distance = np.linalg.norm(pos_from - pos_to)
+			
+			edge_info.extend([int(from_node), int(to_node), float(distance)])
+		
+		edge_info = np.array(edge_info)
+		n_edges = len(edge_info)
 
 		# 9. Graph diameter (single value)
 		graph_diameter = np.array([self.graph_diameter])
+
+		# 10. node_num, agent_num, edge_num
+		node_num = self.n_nodes
+		agent_num = self.agent_num
+		edge_num = len(self.G.edges())
 
 		# 各コンポーネントを1次元配列に変換
 		agent_location_flat = agent_location.flatten()
@@ -545,6 +577,8 @@ class DrpEnv(gym.Env):
 		collision_distance_flat = collision_distance.flatten()
 		node_coordinates_flat = node_coordinates.flatten()
 		edge_info_flat = edge_info.flatten()
+
+		meta_info = np.array([node_num, agent_num, edge_num], dtype=int)
 		
 		# Combine all components into a single observation array
 		obs = np.concatenate([
@@ -556,7 +590,8 @@ class DrpEnv(gym.Env):
 			wait_count,
 			node_coordinates_flat,
 			edge_info_flat,
-			graph_diameter
+			graph_diameter,
+			meta_info
 		])
 		
 		return obs
