@@ -56,6 +56,9 @@ class DrpEnv(gym.Env):
 
 		self.use_finetuning = use_finetuning
 		self.finetuning_model_path = finetuning_model_path
+		self.finetuning_algorithm = finetuning_algorithm
+		self.finetuning_map_name = finetuning_map_name
+		self.finetuning_agent_num = finetuning_agent_num
 		
 		if self.save_logs_to_file:
 			import time
@@ -329,11 +332,55 @@ class DrpEnv(gym.Env):
 		Returns:
 			bool: True if the model was loaded successfully, False otherwise.
 		"""
-		# try:
-		# 	if self.finetuning_model_path is not None:
-		# 		model_path = self.finetuning_model_path
-		# 	else:
-		# 		base_dir = os
+		try:
+			if self.finetuning_model_path is not None:
+				model_path = self.finetuning_model_path
+			else:
+				base_dir = os.path.dirname(os.path.abspath(os.path.abspath(__file__)))
+				save_dir = os.path.join(base_dir, "epymarl", "src", "saved_models")
+
+				file_name = f"{self.finetuning_algorithm}_LARE_{self.finetuning_map_name}_{self.finetuning_agent_num}agents_final.pth"
+				model_path = os.path.join(save_dir, file_name)
+
+			if not os.path.exists(model_path):
+				print(f"❌  [FINETUNE] Model file not found at {model_path}")
+				return False
+			
+			print(f"🔍  [FINETUNE] Loading model from {model_path}...")
+			checkpoint = torch.load(model_path, map_location=self.device)
+
+			self.lare_decompose.load_state_dict(checkpoint['model_state_dict'])
+			self.lare_decompose.train()  # Set model to train mode for finetuning
+
+			if 'experiment_info' in checkpoint:
+				exp_info = checkpoint['experiment_info']
+				print(f"ℹ️  [FINETUNE] Experiment info:")
+				print(f"   - Algorithm: {exp_info.get('algorithm_name', 'unknown')}")
+				print(f"   - Map: {exp_info.get('map_name', 'unknown')}")
+				print(f"   - Agents: {exp_info.get('n_agents', 'unknown')}")
+
+			if 'episode_data' in checkpoint:
+				print(f"   - Original episodes: {checkpoint['episode_data']}")
+			if 'total_training_steps' in checkpoint:
+				print(f"   - Original steps: {checkpoint['total_training_steps']}")
+
+			file_size_kb = os.path.getsize(model_path) / 1024
+			print(f"✅  [FINETUNE] Model file size: {file_size_kb:.2f} KB")
+			print(f"    [FINETUNE] Model set to trainable state for finetuning.")
+
+			return True
+		
+		except KeyError as e:
+			print(f"❌  [FINETUNE] Error loading finetuning model: {e}")
+			print(f"🔍  [FINETUNE] This may happen if the model archtecture has changed.")
+			print(f"💡 [FINETUNE] Try training from scratch or use a compatible model.")
+			return False
+		
+		except Exception as e:
+			print(f"❌  [FINETUNE] Error loading finetuning model: {e}")
+			import traceback
+			print(f"🔍  [FINETUNE] Full traceback: {traceback.format_exc()}")
+			return False
 
 	def load_max_steps_from_config(self):
 		"""
