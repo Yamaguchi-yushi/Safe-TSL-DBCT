@@ -1040,13 +1040,20 @@ class DrpEnv(gym.Env):
 			save_dir = "saved_models"
 			os.makedirs(save_dir, exist_ok=True)
 			
-			# 🔧 NEW: 実験設定情報を取得（動的にアルゴリズム名を決定）
 			algorithm_name = self._get_algorithm_name()  # configから取得
 			map_name = getattr(self, 'map_name', 'unknown_map')  # マップ名
 			agent_count = getattr(self, 'agent_num', 'unknown_agents')  # エージェント数
+			step_in_millions = self.total_step_account / 1_000_000
+			steps_str = f"{step_in_millions:.1f}M"
 			
+			source_base_name = None
+			if self.use_finetuning:
+				source_base_name = self._get_source_model_base_name()  # ファインチューニング元のベース名を取得
+				filename = f"FT_{source_base_name}_{map_name}_{agent_count}agents_{steps_str}_final.pth"
 			# 最終モデルのファイル名（実験設定情報付き）
-			filename = f"{algorithm_name}_LARE_{map_name}_{agent_count}agents_final.pth"
+			else:
+				filename = f"{algorithm_name}_LARE_{map_name}_{agent_count}agents_{steps_str}_final.pth"
+			
 			save_path = os.path.join(save_dir, filename)
 			
 			# 学習時間の計算
@@ -1070,6 +1077,7 @@ class DrpEnv(gym.Env):
 					'collision_type': getattr(self, 'collision', None),
 					'reward_system': 'LARE' if self.use_lare_reward else 'Traditional',
 					'use_lare_training': self.use_lare_training,
+					'source_model': source_base_name,
 				}
 			}
 			
@@ -1082,6 +1090,8 @@ class DrpEnv(gym.Env):
 			print(f"✅ [FINAL SAVE] Final model saved successfully!")
 			print(f"  - File: {filename}")
 			print(f"  - Algorithm: {algorithm_name}")
+			if self.use_finetuning:
+				print(f"  - Fine-tuned from: {source_base_name}")
 			print(f"  - Map: {map_name}")
 			print(f"  - Agents: {agent_count}")
 			print(f"  - Size: {file_size_kb:.1f} KB")
@@ -1111,8 +1121,16 @@ class DrpEnv(gym.Env):
 
 			algorithm_name = self._get_algorithm_name()  # configから取得
 			map_name = getattr(self, 'map_name', 'unknown_map')  # マップ
+			steps_in_millions = self.total_step_account / 1_000_000
+			steps_str = f"{steps_in_millions:.1f}M"
+
+			source_base_name = None
+			if self.use_finetuning:
+				source_base_name = self._get_source_model_base_name()  # ファインチューニング元のベース名を取得
+				file_name = f"FT_{source_base_name}_{map_name}_{self.agent_num}agents_{steps_str}_checkpoint.pth"
+			else:
+				file_name = f"{algorithm_name}_LARE_{map_name}_{self.agent_num}agents_{steps_str}_checkpoint.pth"
 			
-			file_name = f"{algorithm_name}_LARE_{map_name}_{self.agent_num}agents_checkpoint.pth"
 			save_path = os.path.join(save_dir, file_name)
 
 			training_duration = time.time() - self.training_start_time
@@ -1132,6 +1150,7 @@ class DrpEnv(gym.Env):
 					'collision_type': getattr(self, 'collision', None),
 					'reward_system': 'LARE' if self.use_lare_reward else 'Traditional',
 					'use_lare_training': self.use_lare_training,
+					'source_model': source_base_name,
 				}
 
 			}
@@ -1154,6 +1173,34 @@ class DrpEnv(gym.Env):
 		except Exception as e:
 			print(f"❌ Error saving checkpoint: {e}")
 			return None
+		
+	def _get_source_model_base_name(self):
+		"""
+		ファインチューニング元のモデル名からベース名を抽出
+		
+		Returns:
+			str: ベース名
+		"""
+		if not self.use_finetuning or self.finetuning_model_path is None:
+			algorithm = getattr(self, 'finetuning_algorithm', 'QMIX')
+			source_map = getattr(self, 'finetuning_map_name', 'unknown')
+			source_agents = getattr(self, 'finetuning_agent_num', 'unknown')
+			return f"{algorithm}_LARE_{source_map}_{source_agents}agents"
+		
+		try:
+			file_name = os.path.basename(self.finetuning_model_path)
+			base_name = file_name.replace('.pth', '')
+
+			base_name = base_name.replace('_final', '').replace('_checkpoint', '')
+
+			while base_name.startswith('FT_'):
+				base_name = base_name[3:]
+
+			return base_name
+		
+		except Exception as e:
+			print(f"❌ Error extracting source model base name: {e}")
+			return "unknown_source_model"
 		
 	def _get_algorithm_name(self):
 		"""
