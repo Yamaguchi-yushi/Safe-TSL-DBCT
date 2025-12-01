@@ -31,7 +31,7 @@ class DrpEnv(gym.Env):
 			use_separete_memory = False,			# 分離メモリを使うか
 			save_logs_to_file = False,			# ログをファイルに保存するか　falseの場合はコンソールに出力
 			opened_log_file = None,				# ログファイルのハンドル（ファイルに保存する場合のみ指定)
-			use_finetuning = True,			# 事前学習モデルを追加学習するか
+			use_finetuning = False,			# 事前学習モデルを追加学習するか
 			finetuning_model_name = "QMIX_LARE_map_3x3_3agents_final.pth",		# 追加学習に使う事前学習モデルのパス
 			finetuning_algorithm = "QMIX",
 			finetuning_map_name = "map_5x4",
@@ -1737,17 +1737,23 @@ class DrpEnv(gym.Env):
 		Args:
 			agent_id (int): エージェントのID
 		Returns:
-			str: "14→15" または "22" のような形式の位置遷移文字列
+			str: 位置遷移文字列
 		"""
 		try:
-			prev_node = None
+			prev_nodes = None
+			prev_on_node = False
 			if hasattr(self, 'obs_onehot_position_cache') and self.obs_onehot_position_cache is not None:
 				prev_part = self.obs_onehot_position_cache[agent_id]
 				prev_indices = np.where(prev_part != 0)[0]
-				if len(prev_indices) >= 1:
-					prev_node = prev_indices[np.argmax(prev_part[prev_indices])]
+				if len(prev_indices) == 1:
+					prev_nodes = (prev_indices[0],)
+					prev_on_node = True
+				elif len(prev_indices) >= 2:
+					prev_nodes = tuple(prev_indices[:2])
+					prev_on_node = False
 				
-			curr_node = None
+			curr_nodes = None
+			curr_on_node = False
 			if hasattr(self, 'obs_onehot') and self.obs_onehot is not None:
 				if len(self.obs_onehot[agent_id].shape) == 2:
 					agent_onehot = self.obs_onehot[agent_id].flatten()
@@ -1757,20 +1763,89 @@ class DrpEnv(gym.Env):
 				curr_part = agent_onehot[:self.n_nodes]
 				curr_indices = np.where(curr_part != 0)[0]
 				if len(curr_indices) == 1:
-					curr_node = curr_indices[0]
-				if len(curr_indices) >= 2:
-					curr_node = curr_indices[np.argmin(curr_part[curr_indices])]
+					curr_nodes = (curr_indices[0],)
+					curr_on_node = True
+				elif len(curr_indices) >= 2:
+					curr_nodes = tuple(curr_indices[:2])
+					curr_on_node = False
 
-			# ゴールノードの取得
-			goal_node = self.goal_array[agent_id] if hasattr(self, 'goal_array') else '?'
+			goal_node = self.goal_array[agent_id] if hasattr(self, 'goal_array') else None
 
-			if prev_node is None or curr_node is None:
+			if prev_nodes is None or curr_nodes is None:
 				return f"?({goal_node})"
 			
-			if prev_node == curr_node:
-				return f"{curr_node}({goal_node})"
+			def get_edge_direction(edge_nodes, reference_nodes):
+				"""
+				エッジ上の２ノードから移動方向を特定する
+				
+				Args:
+					edge_nodes: エッジ上の2ノード (タプル)
+					reference_nodes: 参照用のノード (タプル)
+				Returns:
+					(start, end) のタプル
+				"""
+				if len(edge_nodes) != 2:
+					return edge_nodes
+				
+				node_a, node_b = edge_nodes[0], edge_nodes[1]
+				
+				# reference_nodesをセットに変換（タプルの場合）
+				if isinstance(reference_nodes, tuple):
+					ref_set = set(reference_nodes)
+				else:
+					ref_set = {reference_nodes}
+
+				if node_a in ref_set and node_b not in ref_set:
+					return (node_a, node_b)
+				elif node_b in ref_set and node_a not in ref_set:
+					return (node_b, node_a)
+
+				return tuple(sorted(edge_nodes))
+			
+			def format_node(node, goal):
+				"""単一ノードをフォーマット"""
+				if node == goal:
+					return f"<{node}>"
+				else:
+					return f"[{node}]"
+			
+			# ケース1: 両方ノード上
+			if prev_on_node and curr_on_node:
+				prev_node = prev_nodes[0]
+				curr_node = curr_nodes[0]
+				prev_str = format_node(prev_node, goal_node)
+				curr_str = format_node(curr_node, goal_node)
+
+				if prev_node == curr_node:
+					return f"{curr_str}({goal_node})"
+				else:
+					return f"{prev_str}→{curr_str}({goal_node})"
+			
+			# ケース2: ノード→エッジ（移動開始）
+			elif prev_on_node and not curr_on_node:
+				prev_node = prev_nodes[0]
+				directed = get_edge_direction(curr_nodes, prev_nodes)
+				dest_node = directed[1]
+				prev_str = format_node(prev_node, goal_node)
+				return f"{prev_str}→{dest_node}({goal_node})"
+			
+			# ケース3: エッジ→ノード（到着）
+			elif not prev_on_node and curr_on_node:
+				curr_node = curr_nodes[0]
+				node_a, node_b = prev_nodes[0], prev_nodes[1]
+				if node_a == curr_node:
+					start_node = node_b
+				elif node_b == curr_node:
+					start_node = node_a
+				else:
+					start_node = min(node_a, node_b)  # デフォルト
+				curr_str = format_node(curr_node, goal_node)
+				return f"{start_node}→{curr_str}({goal_node})"
+			
+			# ケース4: エッジ→エッジ（移動中）
 			else:
-				return f"{prev_node}→{curr_node}({goal_node})"
+				directed = get_edge_direction(curr_nodes, prev_nodes)
+				return f"{directed[0]}→{directed[1]}({goal_node})"
 			
 		except Exception as e:
 			return f"Error({e})"
