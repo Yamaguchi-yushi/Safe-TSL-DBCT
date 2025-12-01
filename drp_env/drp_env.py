@@ -31,10 +31,10 @@ class DrpEnv(gym.Env):
 			use_separete_memory = False,			# 分離メモリを使うか
 			save_logs_to_file = False,			# ログをファイルに保存するか　falseの場合はコンソールに出力
 			opened_log_file = None,				# ログファイルのハンドル（ファイルに保存する場合のみ指定)
-			use_finetuning = False,			# 事前学習モデルを追加学習するか
-			finetuning_model_path = None,		# 追加学習に使う事前学習モデルのパス
+			use_finetuning = True,			# 事前学習モデルを追加学習するか
+			finetuning_model_name = "QMIX_LARE_map_3x3_3agents_final.pth",		# 追加学習に使う事前学習モデルのパス
 			finetuning_algorithm = "QMIX",
-			finetuning_map_name = "map_8x5",
+			finetuning_map_name = "map_5x4",
 			finetuning_agent_num = 3,
 		  ):
 		
@@ -55,7 +55,7 @@ class DrpEnv(gym.Env):
 		self.opened_log_file = opened_log_file
 
 		self.use_finetuning = use_finetuning
-		self.finetuning_model_path = finetuning_model_path
+		self.finetuning_model_name = finetuning_model_name
 		self.finetuning_algorithm = finetuning_algorithm
 		self.finetuning_map_name = finetuning_map_name
 		self.finetuning_agent_num = finetuning_agent_num
@@ -254,7 +254,7 @@ class DrpEnv(gym.Env):
 						print(f"❌  [PRETRAINED] Failed to load pretrained reward model.")
 						self.use_pretrained_model = False
 				elif self.use_finetuning:
-					print(f"🔍  [FINETUNE] Attempting to load finetuning model from: {self.finetuning_model_path}")
+					print(f"🔍  [FINETUNE] Attempting to load finetuning model from: {self.finetuning_model_name}")
 					load_success = self.load_finetuning_lare_model()
 
 					if load_success:
@@ -333,14 +333,21 @@ class DrpEnv(gym.Env):
 			bool: True if the model was loaded successfully, False otherwise.
 		"""
 		try:
-			if self.finetuning_model_path is not None:
-				model_path = self.finetuning_model_path
-			else:
-				base_dir = os.path.dirname(os.path.abspath(os.path.abspath(__file__)))
-				save_dir = os.path.join(base_dir, "epymarl", "src", "saved_models")
+			base_sir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+			save_dir = os.path.join(base_sir, "epymarl", "src", "saved_models")
 
+			if self.finetuning_model_name is not None:
+				model_name = self.finetuning_model_name
+
+				if not model_name.endswith(".pth"):
+					model_name += ".pth"
+
+				model_path = os.path.join(save_dir, model_name)
+			else:
 				file_name = f"{self.finetuning_algorithm}_LARE_{self.finetuning_map_name}_{self.finetuning_agent_num}agents_final.pth"
 				model_path = os.path.join(save_dir, file_name)
+
+			self.finetuning_model_path = model_path
 
 			if not os.path.exists(model_path):
 				print(f"❌  [FINETUNE] Model file not found at {model_path}")
@@ -1037,7 +1044,8 @@ class DrpEnv(gym.Env):
 		"""
 		try:
 			# 保存ディレクトリの作成
-			save_dir = "saved_models"
+			base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+			save_dir = os.path.join(base_dir, "epymarl", "src", "saved_models")
 			os.makedirs(save_dir, exist_ok=True)
 			
 			algorithm_name = self._get_algorithm_name()  # configから取得
@@ -1116,7 +1124,8 @@ class DrpEnv(gym.Env):
 			print("❌ LARE reward model is not available. Skipping checkpoint save.")
 			return None
 		try:
-			save_dir = "saved_models"
+			base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+			save_dir = os.path.join(base_dir, "epymarl", "src", "saved_models")
 			os.makedirs(save_dir, exist_ok=True)
 
 			algorithm_name = self._get_algorithm_name()  # configから取得
