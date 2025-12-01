@@ -1625,7 +1625,6 @@ class DrpEnv(gym.Env):
 				# 従来の報酬システムを使用している場合は衝突報酬を適用
 				ri_array = [collision_reward for _ in range(self.agent_num)]
 				self._log(f"🔴 [COLLISION] Step {self.step_account}: All agents receive collision reward: {collision_reward}")
-				self._log(f"🔴 [COLLISION] Episode terminated due to collision")
 			
 		# not happen
 		else: #non collision
@@ -1673,17 +1672,18 @@ class DrpEnv(gym.Env):
 					pre_pos_agenti = [self.obs_current_chache[i][0],self.obs_current_chache[i][1]]
 					pos_agenti = [self.obs[i][0],self.obs[i][1]]
 					goal_pos = self.pos[self.goal_array[i]]
+					pos_str = self._get_position_transition_str(i)
 					
 					if str(pos_agenti)==str(goal_pos): # at goal
 						if pre_pos_agenti!=pos_agenti : #first time to reach goal 
-							self._log(f"  🎯 {i}:reward = {ri}")
+							self._log(f"  {i}:reward = {ri} {pos_str}")
 						else: # stop at goal
-							self._log(f"  🎯 {i}:reward = {ri}")
+							self._log(f"  {i}:reward = {ri} {pos_str}")
 					else: #at a general node 
 						if pre_pos_agenti==pos_agenti: # stop at a general node 
-							self._log(f"  ⏸️ {i}:reward = {ri}")
+							self._log(f"  {i}:reward = {ri} {pos_str}")
 						else: # just move 
-							self._log(f"  🚶 {i}:reward = {ri}")
+							self._log(f"  {i}:reward = {ri} {pos_str}")
 				
 				team_reward += ri
 				ri_array.append(ri)
