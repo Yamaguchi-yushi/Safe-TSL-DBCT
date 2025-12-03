@@ -27,15 +27,13 @@ class DrpEnv(gym.Env):
 			reward_list={"goal": 100, "collision": -10, "wait": -10, "move": -1},
 			use_lare_reward = True,			# LaReを学習に使うか
 			use_lare_training = True,			# Falseの場合はLARE報酬でNN学習、Q値は従来報酬で学習、Trueの場合はLARE報酬でNN学習、Q値もLARE報酬で学習
-			use_pretrained_model = False,		# 事前学習モデルを使うか
+			use_pretrained_model = True,		# 事前学習モデルを使うか
+			pretrained_model_name = "",	# 事前学習モデルのパス
 			use_separete_memory = False,			# 分離メモリを使うか
 			save_logs_to_file = False,			# ログをファイルに保存するか　falseの場合はコンソールに出力
 			opened_log_file = None,				# ログファイルのハンドル（ファイルに保存する場合のみ指定)
 			use_finetuning = False,			# 事前学習モデルを追加学習するか
-			finetuning_model_name = "QMIX_LARE_map_3x3_3agents_final.pth",		# 追加学習に使う事前学習モデルのパス
-			finetuning_algorithm = "QMIX",
-			finetuning_map_name = "map_5x4",
-			finetuning_agent_num = 3,
+			finetuning_model_name = "FT_QMIX_LARE_map_3x3_3agents_map_5x4_3agents_1.1M_final.pth",		# 追加学習に使う事前学習モデルのパス
 		  ):
 		
 		self.agent_num = agent_num
@@ -49,6 +47,7 @@ class DrpEnv(gym.Env):
 		self.use_lare_reward = use_lare_reward
 		self.use_lare_training = use_lare_training
 		self.use_pretrained_model = use_pretrained_model
+		self.pretrained_model_name = pretrained_model_name
 		self.use_separete_memory = use_separete_memory
 
 		self.save_logs_to_file = save_logs_to_file
@@ -56,9 +55,6 @@ class DrpEnv(gym.Env):
 
 		self.use_finetuning = use_finetuning
 		self.finetuning_model_name = finetuning_model_name
-		self.finetuning_algorithm = finetuning_algorithm
-		self.finetuning_map_name = finetuning_map_name
-		self.finetuning_agent_num = finetuning_agent_num
 		
 		if self.save_logs_to_file:
 			import time
@@ -295,15 +291,20 @@ class DrpEnv(gym.Env):
 			base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 			save_dir = os.path.join(base_dir, "epymarl", "src", "saved_models")
 
-			algorithm_name = self._get_algorithm_name()
+			if self.pretrained_model_name is None:
+				print(f"❌  [PRETRAINED] pretrained_model_name is not specified.")
+				sys.exit(1)
 
-			file_name = f"QMIX_LARE_map_8x5_3agents_final.pth"
-			model_path = os.path.join(save_dir, file_name)
+			model_name = self.pretrained_model_name
+			if not model_name.endswith(".pth"):
+				model_name += ".pth"
+			model_path = os.path.join(save_dir, model_name)
+			self.pretrained_model_name = model_path
 
 			# ファイルの存在確認
 			if not os.path.exists(model_path):
 				print(f"❌  [PRETRAINED] Model file not found at {model_path}")
-				return False
+				sys.exit(1)
 			
 			# モデルのロード
 			print(f"🔍  [PRETRAINED] Loading model from {model_path}...")
@@ -311,6 +312,7 @@ class DrpEnv(gym.Env):
 
 			# モデルの重みをロード
 			self.lare_decompose.load_state_dict(checkpoint['model_state_dict'])
+			self.lare_decompose.eval()  # Set model to evaluation mode
 
 			print(f"✅  [PRETRAINED] Model loaded successfully")
 			file_size_kb = os.path.getsize(model_path) / 1024
@@ -318,11 +320,17 @@ class DrpEnv(gym.Env):
 
 			return True
 		
+		except KeyError as e:
+			print(f"❌  [PRETRAINED] Error loading pretrained model: {e}")
+			print(f"🔍  [PRETRAINED] This may happen if the model archtecture has changed.")
+			print(f"💡 [PRETRAINED] Try training from scratch or use a compatible model.")
+			sys.exit(1)
+
 		except Exception as e:
 			print(f"❌  [PRETRAINED] Error loading pretrained model: {e}")
 			import traceback
 			print(f"🔍  [PRETRAINED] Full traceback: {traceback.format_exc()}")
-			return False
+			sys.exit(1)
 
 	def load_finetuning_lare_model(self):
 		"""
@@ -333,25 +341,25 @@ class DrpEnv(gym.Env):
 			bool: True if the model was loaded successfully, False otherwise.
 		"""
 		try:
-			base_sir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-			save_dir = os.path.join(base_sir, "epymarl", "src", "saved_models")
+			base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+			save_dir = os.path.join(base_dir, "epymarl", "src", "saved_models")
 
-			if self.finetuning_model_name is not None:
-				model_name = self.finetuning_model_name
+			if self.finetuning_model_name is None:
+				print(f"❌  [FINETUNE] finetuning_model_name is not specified.")
+				sys.exit(1)
 
-				if not model_name.endswith(".pth"):
-					model_name += ".pth"
 
-				model_path = os.path.join(save_dir, model_name)
-			else:
-				file_name = f"{self.finetuning_algorithm}_LARE_{self.finetuning_map_name}_{self.finetuning_agent_num}agents_final.pth"
-				model_path = os.path.join(save_dir, file_name)
+			model_name = self.finetuning_model_name
 
+			if not model_name.endswith(".pth"):
+				model_name += ".pth"
+
+			model_path = os.path.join(save_dir, model_name)
 			self.finetuning_model_path = model_path
 
 			if not os.path.exists(model_path):
 				print(f"❌  [FINETUNE] Model file not found at {model_path}")
-				return False
+				sys.exit(1)
 			
 			print(f"🔍  [FINETUNE] Loading model from {model_path}...")
 			checkpoint = torch.load(model_path, map_location=self.device)
@@ -381,13 +389,13 @@ class DrpEnv(gym.Env):
 			print(f"❌  [FINETUNE] Error loading finetuning model: {e}")
 			print(f"🔍  [FINETUNE] This may happen if the model archtecture has changed.")
 			print(f"💡 [FINETUNE] Try training from scratch or use a compatible model.")
-			return False
+			sys.exit(1)
 		
 		except Exception as e:
 			print(f"❌  [FINETUNE] Error loading finetuning model: {e}")
 			import traceback
 			print(f"🔍  [FINETUNE] Full traceback: {traceback.format_exc()}")
-			return False
+			sys.exit(1)
 
 	def load_max_steps_from_config(self):
 		"""
@@ -1190,11 +1198,9 @@ class DrpEnv(gym.Env):
 		Returns:
 			str: ベース名
 		"""
-		if not self.use_finetuning or self.finetuning_model_path is None:
-			algorithm = getattr(self, 'finetuning_algorithm', 'QMIX')
-			source_map = getattr(self, 'finetuning_map_name', 'unknown')
-			source_agents = getattr(self, 'finetuning_agent_num', 'unknown')
-			return f"{algorithm}_LARE_{source_map}_{source_agents}agents"
+		if not self.use_finetuning or not hasattr(self, 'finetuning_model_path') or self.finetuning_model_path is None:
+			print("❌ Fine-tuning model path not set.")
+			return "unknown_source_model"
 		
 		try:
 			file_name = os.path.basename(self.finetuning_model_path)
@@ -1676,14 +1682,14 @@ class DrpEnv(gym.Env):
 					
 					if str(pos_agenti)==str(goal_pos): # at goal
 						if pre_pos_agenti!=pos_agenti : #first time to reach goal 
-							self._log(f"  {i}:reward = {ri} {pos_str}")
+							self._log(f"   {i}:reward = {ri} {pos_str}")
 						else: # stop at goal
-							self._log(f"  {i}:reward = {ri} {pos_str}")
+							self._log(f"   {i}:reward = {ri} {pos_str}")
 					else: #at a general node 
 						if pre_pos_agenti==pos_agenti: # stop at a general node 
-							self._log(f"  {i}:reward = {ri} {pos_str}")
+							self._log(f"   {i}:reward = {ri} {pos_str}")
 						else: # just move 
-							self._log(f"  {i}:reward = {ri} {pos_str}")
+							self._log(f"   {i}:reward = {ri} {pos_str}")
 				
 				team_reward += ri
 				ri_array.append(ri)
