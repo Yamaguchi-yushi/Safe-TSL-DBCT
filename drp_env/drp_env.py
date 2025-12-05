@@ -28,12 +28,12 @@ class DrpEnv(gym.Env):
 			use_lare_reward = True,			# LaReを学習に使うか
 			use_lare_training = True,			# Falseの場合はLARE報酬でNN学習、Q値は従来報酬で学習、Trueの場合はLARE報酬でNN学習、Q値もLARE報酬で学習
 			use_pretrained_model = True,		# 事前学習モデルを使うか
-			pretrained_model_name = "",	# 事前学習モデルのパス
+			pretrained_model_name = "QMIX_LARE_map_8x5_2agents_1.1M_final.pth",	# 事前学習モデルのパス
 			use_separete_memory = False,			# 分離メモリを使うか
 			save_logs_to_file = False,			# ログをファイルに保存するか　falseの場合はコンソールに出力
 			opened_log_file = None,				# ログファイルのハンドル（ファイルに保存する場合のみ指定)
 			use_finetuning = False,			# 事前学習モデルを追加学習するか
-			finetuning_model_name = "FT_QMIX_LARE_map_3x3_3agents_map_5x4_3agents_1.1M_final.pth",		# 追加学習に使う事前学習モデルのパス
+			finetuning_model_name = "QMIX_LARE_map_8x5_2agents_1.1M_final.pth",		# 追加学習に使う事前学習モデルのパス
 		  ):
 		
 		self.agent_num = agent_num
@@ -1282,6 +1282,8 @@ class DrpEnv(gym.Env):
 
 				print(f"🏁 [TRAINING COMPLETE] Reached max training steps: {self.total_step_account}/{self.max_train_steps}")
 				print(f"  - Total episodes completed: {self.episode_account}")
+
+				self.training_completed = True
 
 				final_save_path = self.save_final_checkpoint()
 				if final_save_path:

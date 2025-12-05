@@ -92,7 +92,11 @@ class DRP_prompt(Base_prompt):
                         1 + 									    # collision_distance
                         2 + 									    # collision_info
                         1 + 								        # wait_count
-                        self.n_nodes * 2)						    # node_info
+                        self.n_nodes * 2 +                          # node_info
+                        self.n_edges * 3 +                          # edge_info                                              
+                        1 +                                         # graph_diameter
+                        3                                           # meta_info (node_num, agent_num, edge_num)
+                        )						    
         
         # ダミー観測の作成（factor_checkのため）
         self.obs = []
