@@ -28,10 +28,9 @@ class DrpEnv(gym.Env):
 			use_lare_reward = True,			# LaReを学習に使うか
 			use_lare_training = True,			# Falseの場合はLARE報酬でNN学習、Q値は従来報酬で学習、Trueの場合はLARE報酬でNN学習、Q値もLARE報酬で学習
 			use_pretrained_model = True,		# 事前学習モデルを使うか
-			pretrained_model_name = "QMIX_LARE_map_8x5_2agents_1.1M_final.pth",	# 事前学習モデルのパス
+			pretrained_model_name = "FT_QMIX_LARE_map_8x5_2agents_1.1M_map_aoba00_2agents_1.1M_final.pth",	# 事前学習モデルのパス
 			use_separete_memory = False,			# 分離メモリを使うか
-			save_logs_to_file = False,			# ログをファイルに保存するか　falseの場合はコンソールに出力
-			opened_log_file = None,				# ログファイルのハンドル（ファイルに保存する場合のみ指定)
+			show_debug_logs = False,			# デバッグログをコンソールに表示するか（Trueで表示、Falseで非表示）
 			use_finetuning = False,			# 事前学習モデルを追加学習するか
 			finetuning_model_name = "QMIX_LARE_map_8x5_2agents_1.1M_final.pth",		# 追加学習に使う事前学習モデルのパス
 		  ):
@@ -50,31 +49,11 @@ class DrpEnv(gym.Env):
 		self.pretrained_model_name = pretrained_model_name
 		self.use_separete_memory = use_separete_memory
 
-		self.save_logs_to_file = save_logs_to_file
-		self.opened_log_file = opened_log_file
+		self.show_debug_logs = show_debug_logs
 
 		self.use_finetuning = use_finetuning
 		self.finetuning_model_name = finetuning_model_name
 		
-		if self.save_logs_to_file:
-			import time
-
-			log_dir = "/Users/yamaguchiyuushi/OneDrive/MARL4DRP_logs"
-			time_stamp = time.strftime("%Y%m%d_%H%M%S")
-			if use_lare_reward:
-				log_filename = f"LARE_{map_name}_{agent_num}agents_{time_stamp}.log"
-			else:
-				log_filename = f"TRAD_{map_name}_{agent_num}agents_{time_stamp}.log"
-			log_path = os.path.join(log_dir, log_filename)
-
-			try:
-				self.opened_log_file = open(log_path, 'w', buffering=1)  # Line buffered
-				print(f"📁 [LOG] Saving logs to: {log_path}")
-				print("ℹ️  [LOG] Console output is disabled. Check the log file for details.")
-			except Exception as e:
-				print(f"❌ [LOG] Failed to open log file: {e}")
-				self.save_logs_to_file = False
-
 		# reward
 		self.r_goal = reward_list["goal"]
 		self.r_coll = reward_list["collision"]
@@ -1892,37 +1871,18 @@ class DrpEnv(gym.Env):
 		) # a must be a angle !!!list!!!
 
 	def close(self):
-		if hasattr(self, 'opened_log_file') and self.opened_log_file is not None:
-			try:
-				self._log("=== Environment Closed ===", to_console=False)
-				self.opened_log_file.close()
-				print("✅ Log file closed successfully.")
-			except Exception as e:
-				pass
-			self.opened_log_file = None
 		print('Environment CLOSE')
 		return None
 
-	def _log(self, message, to_console=False):
+	def _log(self, message, force_print=False):
 		"""
 		メッセージをログファイルとコンソールに出力するユーティリティ関数
 
 		Args:
 			message (str): ログメッセージ
-			to_console (bool): コンソールにも出力するかどうか
+			force_print (bool): コンソールにも出力するかどうか
 		"""
-		import time
-		timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-		formatted_message = f"[{timestamp}] {message}"
-
-		if self.save_logs_to_file and self.opened_log_file is not None:
-			try:
-				self.opened_log_file.write(formatted_message + "\n")
-			except Exception as e:
-				print(f"❌ [LOG ERROR] Failed to write to log file: {e}")
-				print(formatted_message)
-		
-		if not self.save_logs_to_file or to_console:
+		if self.show_debug_logs or force_print:
 			print(message)	
 
 	def _get_termination_reason(self, info):
