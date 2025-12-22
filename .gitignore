@@ -1,0 +1,2 @@
+# LLM応答キャッシュ（重い・変更が多いので除外）
+drp_env/reward_model/LLMrd/responses/
