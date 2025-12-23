@@ -25,10 +25,10 @@ class DrpEnv(gym.Env):
 			collision,
 			map_name="map_3x3",
 			reward_list={"goal": 100, "collision": -10, "wait": -10, "move": -1},
-			use_lare_reward = True,			# LaReを学習に使うか
-			use_lare_training = True,			# Falseの場合はLARE報酬でNN学習、Q値は従来報酬で学習、Trueの場合はLARE報酬でNN学習、Q値もLARE報酬で学習
-			use_pretrained_model = True,		# 事前学習モデルを使うか
-			pretrained_model_name = "FT_QMIX_LARE_map_8x5_2agents_1.1M_map_aoba00_2agents_1.1M_final.pth",	# 事前学習モデルのパス
+			use_lare_reward = False,			# LaReを学習に使うか
+			use_lare_training = False,			# Falseの場合はLARE報酬でNN学習、Q値は従来報酬で学習、Trueの場合はLARE報酬でNN学習、Q値もLARE報酬で学習
+			use_pretrained_model = False,		# 事前学習モデルを使うか
+			pretrained_model_name = "QMIX_LARE_map_8x5_2agents_1.1M_final.pth",	# 事前学習モデルのパス
 			use_separete_memory = False,			# 分離メモリを使うか
 			show_debug_logs = False,			# デバッグログをコンソールに表示するか（Trueで表示、Falseで非表示）
 			use_finetuning = False,			# 事前学習モデルを追加学習するか
@@ -71,6 +71,9 @@ class DrpEnv(gym.Env):
 		self.total_step_account = 0
 
 		self.distance_from_start = np.zeros(self.agent_num)
+
+		self.agent_arrival_steps = np.full(self.agent_num, -1, dtype=int)
+		self.episode_cost = 0
 
 		self.reward_norm = False
 
@@ -765,6 +768,7 @@ class DrpEnv(gym.Env):
 			if str(pos_agenti) == str(goal_pos) and pre_pos_agenti != pos_agenti:
 				self.reach_account += 1
 				self.terminated[agent_id] = True
+				self._record_agent_arrival(agent_id)
 				print(f"  🎯 Agent {agent_id}: GOAL REACHED! (LARE mode, Total: {self.reach_account})")
 
 		try:
@@ -1415,6 +1419,9 @@ class DrpEnv(gym.Env):
 		self.distance_from_start = np.zeros(self.agent_num) # info
 		self.wait_count = np.zeros(self.agent_num) # info
 
+		self.agent_arrival_steps = np.full(self.agent_num, -1, dtype=int) # info
+		self.episode_cost = 0 # info
+
 		self.reach_account = 0
 		self.step_account = 0
 		self.episode_account += 1
@@ -1536,6 +1543,7 @@ class DrpEnv(gym.Env):
 			"distance_from_start": None,
 			"step": self.step_account,
 			"wait": list(self.wait_count),
+			"cost": 0,
 		}
 		# happen
 		if collision_flag==1:#collision
@@ -1545,6 +1553,9 @@ class DrpEnv(gym.Env):
 				self.terminated = [False for _ in range(self.agent_num)]
 			else: # default -> self.collision == "terminated"
 				self.terminated = [True for _ in range(self.agent_num)]
+
+				self.episode_cost = self.agent_num * self.time_limit
+				info["cost"] = self.episode_cost
 			info["collision"] = True
 			obs = self.obs_manager.calc_obs()
 
@@ -1589,7 +1600,7 @@ class DrpEnv(gym.Env):
 
 				# LARE報酬システムを使用している場合は各エージェントのLARE報酬を計算
 				ri_array = []
-				print(f"🔴 [COLLISION] Step {self.step_account}: Using LARE rewards with collision info")
+				print(f" [COLLISION] Step {self.step_account}: Using LARE rewards with collision info")
 				
 				# 修正箇所: _call_lare_reward_system の呼び出し
 				for i in range(self.agent_num):
@@ -1680,6 +1691,9 @@ class DrpEnv(gym.Env):
 				self.reach_account = 0
 				# info
 				info["goal"] = True
+
+				self.episode_cost = self._calculate_episode_cost(info)
+				info["cost"] = self.episode_cost
 			
 			else:
 				pass
@@ -1689,9 +1703,12 @@ class DrpEnv(gym.Env):
 
 		# Check whether time is over
 		if self.step_account >= self.time_limit:
-			print(f"⏰ !!!TIME UP!!! (Step {self.step_account}/{self.time_limit})")
+			print(f"!!!TIME UP!!! (Step {self.step_account}/{self.time_limit})")
 			info["timeup"]= True
 			self.terminated = [True for _ in range(self.agent_num)]
+
+			self.episode_cost = self.agent_num * self.time_limit
+			info["cost"] = self.episode_cost
 		
 		if self.use_separete_memory and all(self.terminated):
 			self.current_termination_reason = self._get_termination_reason(info)
@@ -1846,6 +1863,7 @@ class DrpEnv(gym.Env):
 				r_i = self.r_goal
 				self.reach_account += 1
 				self.terminated[i] = True
+				self._record_agent_arrival(i)
 			else: # stop at goal
 				r_i = 0   
 				# self.distance_from_start[i] -= self.speed
@@ -1884,6 +1902,37 @@ class DrpEnv(gym.Env):
 		"""
 		if self.show_debug_logs or force_print:
 			print(message)	
+
+	def _calculate_episode_cost(self, info):
+		"""エピソードのコストを計算して返す"""
+		
+		if info.get("collision", False) or info.get("timeup", False):
+			cost = self.agent_num * self.time_limit
+			print(f"✅ [Episode{self.episode_account}] Total cost due to {'collision' if info.get('collision', False) else 'timeup'}: {cost}")
+			return cost
+		
+		if info.get("goal", False):
+			cost = 0
+			for i in range(self.agent_num):
+				if self.agent_arrival_steps[i] > 0:
+					cost += self.agent_arrival_steps[i]
+				else:
+					print(f"⚠️ [COST CALCULATION] Agent {i} has invalid arrival step: {self.agent_arrival_steps[i]}")
+					cost += self.time_limit
+			print(f"✅ [Episode{self.episode_account}] Total cost: {cost}")
+			return cost
+		
+		print("⚠️ [COST CALCULATION] Episode did not end with goal, collision, or timeup. Assigning maximum cost.")
+		return self.agent_num * self.time_limit
+	
+	def get_episode_cost(self):
+		return self.episode_cost
+	
+	def _record_agent_arrival(self, agent_id):
+		"""エージェントの到着ステップを記録する"""
+		if self.agent_arrival_steps[agent_id] < 0:
+			self.agent_arrival_steps[agent_id] = self.step_account
+			self._log(f"✅ [ARRIVAL] Agent {agent_id} arrived at step {self.step_account}")
 
 	def _get_termination_reason(self, info):
 		"""エピソード終了の理由を判定して返す"""

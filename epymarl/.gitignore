@@ -258,3 +258,5 @@ drp_env/
 # 学習結果・ログ（重い・変更が多すぎるので除外）
 tb_logs/
 results/
+
+src/saved_models/
