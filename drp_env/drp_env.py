@@ -1544,6 +1544,7 @@ class DrpEnv(gym.Env):
 			"step": self.step_account,
 			"wait": list(self.wait_count),
 			"cost": 0,
+			"goal_cost": None,
 		}
 		# happen
 		if collision_flag==1:#collision
@@ -1600,7 +1601,7 @@ class DrpEnv(gym.Env):
 
 				# LARE報酬システムを使用している場合は各エージェントのLARE報酬を計算
 				ri_array = []
-				print(f" [COLLISION] Step {self.step_account}: Using LARE rewards with collision info")
+				print(f" ")
 				
 				# 修正箇所: _call_lare_reward_system の呼び出し
 				for i in range(self.agent_num):
@@ -1694,6 +1695,7 @@ class DrpEnv(gym.Env):
 
 				self.episode_cost = self._calculate_episode_cost(info)
 				info["cost"] = self.episode_cost
+				info["goal_cost"] = self.episode_cost
 			
 			else:
 				pass
@@ -1919,7 +1921,6 @@ class DrpEnv(gym.Env):
 				else:
 					print(f"⚠️ [COST CALCULATION] Agent {i} has invalid arrival step: {self.agent_arrival_steps[i]}")
 					cost += self.time_limit
-			print(f"✅ [Episode{self.episode_account}] Total cost: {cost}")
 			return cost
 		
 		print("⚠️ [COST CALCULATION] Episode did not end with goal, collision, or timeup. Assigning maximum cost.")
