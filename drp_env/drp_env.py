@@ -25,10 +25,10 @@ class DrpEnv(gym.Env):
 			collision,
 			map_name="map_3x3",
 			reward_list={"goal": 100, "collision": -10, "wait": -10, "move": -1},
-			use_lare_reward = False,			# LaReを学習に使うか
-			use_lare_training = False,			# Falseの場合はLARE報酬でNN学習、Q値は従来報酬で学習、Trueの場合はLARE報酬でNN学習、Q値もLARE報酬で学習
-			use_pretrained_model = False,		# 事前学習モデルを使うか
-			pretrained_model_name = "QMIX_LARE_map_8x5_2agents_1.1M_final.pth",	# 事前学習モデルのパス
+			use_lare_reward = True,			# LaReを学習に使うか
+			use_lare_training = True,			# Falseの場合はLARE報酬でNN学習、Q値は従来報酬で学習、Trueの場合はLARE報酬でNN学習、Q値もLARE報酬で学習
+			use_pretrained_model = True,		# 事前学習モデルを使うか
+			pretrained_model_name = "FT_QMIX_LARE_map_8x5_2agents_1.1M_map_8x5_3agents_1.1M_final.pth",	# 事前学習モデルのパス
 			use_separete_memory = False,			# 分離メモリを使うか
 			show_debug_logs = False,			# デバッグログをコンソールに表示するか（Trueで表示、Falseで非表示）
 			use_finetuning = False,			# 事前学習モデルを追加学習するか
@@ -981,7 +981,6 @@ class DrpEnv(gym.Env):
 				episode_length = np.concatenate(length_list, axis=0)
 
 			else:
-				print(f" [SAMPLING] Using unified memory")
 			# メモリサイズをチェック
 				memory_size = len(self.memory_e)
 			
@@ -1019,7 +1018,6 @@ class DrpEnv(gym.Env):
 						
 			# 更新実行
 			loss = self.train_step(states, actions, episode_return, episode_length)
-			print(f"📈 [UPDATE RESULT] Episode {self.episode_account}: loss = {loss:.4f}")
 			
 		except Exception as e:
 			print(f"❌ Error in episode update: {e}")
@@ -1250,13 +1248,9 @@ class DrpEnv(gym.Env):
 	  		self.use_lare_reward and
 			not self.use_pretrained_model):
 
-			print(f"📝 [EPISODE END] Episode {self.episode_account} completed")
-			print(f"  - Steps in this episode: {len(self.episode_data['x_e'])}")
-
 			# ステップ数の更新
 			if hasattr(self, 'total_step_account') and hasattr(self, 'step_account'):
 				self.total_step_account += self.step_account
-				print(f"  - Total training steps so far: {self.total_step_account}/{self.max_train_steps}")
 
 			# 学習終了判定
 			if (hasattr(self, 'max_train_steps') and
@@ -1285,7 +1279,6 @@ class DrpEnv(gym.Env):
 						self.episode_data['mask_e'],
 						self.episode_data['reward_e']
 					)
-					print(f"💾 [MEMORY] Episode {self.episode_account} saved to memory (size: {len(self.memory_e)})")
 				else:
 					if hasattr(self, 'current_termination_reason'):
 						termination_reason = self.current_termination_reason
@@ -1601,7 +1594,6 @@ class DrpEnv(gym.Env):
 
 				# LARE報酬システムを使用している場合は各エージェントのLARE報酬を計算
 				ri_array = []
-				print(f" ")
 				
 				# 修正箇所: _call_lare_reward_system の呼び出し
 				for i in range(self.agent_num):
@@ -1696,6 +1688,7 @@ class DrpEnv(gym.Env):
 				self.episode_cost = self._calculate_episode_cost(info)
 				info["cost"] = self.episode_cost
 				info["goal_cost"] = self.episode_cost
+				print("Episode cost:", self.episode_cost)
 			
 			else:
 				pass
