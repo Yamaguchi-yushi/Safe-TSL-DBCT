@@ -1,114 +1,48 @@
-absl-py==2.2.2
-annotated-types==0.7.0
-anyio==4.5.2
-atomicwrites==1.4.1
-attrs==25.3.0
-cachetools==5.5.2
-certifi==2025.1.31
-chardet==3.0.4
-charset-normalizer==3.4.1
-click==8.1.8
-cloudpickle==3.1.1
-colorama==0.4.6
-contourpy==1.1.1
-cycler==0.12.1
-deepdiff==8.4.2
-distro==1.9.0
-docopt-ng==0.9.0
--e git+https://github.com/Yamaguchi-yushi/MARL4DRP.git@8c925c65d4bbbd7458ab9f07f081efd949a5549c#egg=drp
-# Editable install with no version control (drp-env==0.1)
--e /Users/yamaguchiyuushi/drp
-enum34==1.1.10
-exceptiongroup==1.3.0
-Farama-Notifications==0.0.4
-filelock==3.16.1
-fonttools==4.57.0
-fsspec==2025.3.0
-future==1.0.0
-gitdb==4.0.12
-GitPython==3.1.44
-google-auth==2.39.0
-google-auth-oauthlib==0.4.6
-grpcio==1.70.0
+# --- Core Data Science ---
+numpy==1.24.4
+scipy==1.10.1
+matplotlib==3.6.3
+pandas
+networkx==3.1
+sympy==1.13.3
+
+# --- Reinforcement Learning & Environments ---
 gym==0.21.0
 gymnasium==1.1.1
-h11==0.16.0
-httpcore==1.0.9
-httpx==0.28.1
-idna==3.10
-imageio==2.35.1
-importlib_metadata==8.5.0
-Jinja2==3.1.6
-jiter==0.9.1
-jsonpickle==4.0.5
-kiwisolver==1.4.7
-lbforaging==1.1.1
-Markdown==3.7
-MarkupSafe==2.1.5
-matplotlib==3.6.3
-matrixgames @ git+https://github.com/uoe-agents/matrix-games.git@c3a893002100503738546bef43071bb3c76ce201
-mock==5.2.0
-more-itertools==10.5.0
-mpe @ git+https://github.com/semitable/multiagent-particle-envs.git@2cef12f72a9192a819ef289646526801c39fb909
-mpmath==1.3.0
-mpyq==0.2.5
-munch==4.0.0
-networkx==3.1
-numpy==1.24.4
-numpy-stl==3.1.2
-oauthlib==3.2.2
-openai==1.93.0
-orderly-set==5.4.0
-packaging==24.2
-pbr==4.3.0
-pillow==10.4.0
-pluggy==0.7.1
-portpicker==1.2.0
-probscale==0.2.5
-protobuf==3.20.3
-py==1.6.0
-py-cpuinfo==9.0.0
-pyasn1==0.6.1
-pyasn1_modules==0.4.2
-pydantic==2.10.6
-pydantic_core==2.27.2
 pygame==2.6.1
 pyglet==1.5.31
-pyparsing==2.2.2
-PySC2==3.0.0
-pytest==4.3.1
-python-dateutil==2.7.3
-python-utils==3.8.2
-PyYAML==5.3.1
-regex==2024.11.6
-requests==2.31.0
-requests-oauthlib==2.0.0
-rsa==4.9.1
+lbforaging==1.1.1
 rware==2.0.0
-s2clientprotocol==4.10.1.75800.0
-s2protocol==5.0.14.93333.0
-sacred==0.8.7
-scipy==1.10.1
-six==1.11.0
-sk-video==1.1.10
-SMAC @ git+https://github.com/oxwhirl/smac.git@d6aab33f76abc3849c50463a8592a84f59a5ef84
-smmap==5.0.2
-snakeviz==2.2.1
-sniffio==1.3.1
-sympy==1.13.3
-tensorboard==2.8.0
-tensorboard-data-server==0.6.1
-tensorboard-logger==0.1.0
-tensorboard-plugin-wit==1.8.1
-tiktoken==0.7.0
+# matrixgames, mpe, SMAC は git 経由でのインストールが推奨されます
+
+# --- Deep Learning ---
 torch==2.4.1
 torchvision==0.19.1
-tornado==5.1.1
+tensorboard==2.8.0
+tensorboard-logger==0.1.0
+
+# --- LLM & API ---
+openai==1.93.0
+tiktoken==0.7.0
+pydantic==2.10.6
+
+# --- Utilities ---
+PyYAML==5.3.1
+sacred==0.8.7
 tqdm==4.67.1
+click==8.1.8
+cloudpickle==3.1.1
+absl-py==2.2.2
+GitPython==3.1.44
+snakeviz==2.2.1
+
+# --- StarCraft II (If needed) ---
+PySC2==3.0.0
+s2clientprotocol==4.10.1.75800.0
+s2protocol==5.0.14.93333.0
+
+# --- Dependencies ---
 typing_extensions==4.13.2
-urllib3==1.23
-websocket-client==0.53.0
-Werkzeug==3.0.6
-whichcraft==0.5.2
-wrapt==1.10.11
+importlib_metadata==8.5.0
 zipp==3.20.2
+pillow==10.4.0
