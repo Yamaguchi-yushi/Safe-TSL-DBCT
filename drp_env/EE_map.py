@@ -200,16 +200,17 @@ class MapMake():
 
 	def get_avail_action_fun(self, obs_i, current_start, current_goal, goal_i):
 		#if s==self.pos[goal_i] and goal_i==0:
-		if [obs_i[0],obs_i[1]]==self.pos[goal_i]:
+		obs_pos = [float(obs_i[0]), float(obs_i[1])]
+		if obs_pos == self.pos[goal_i]:
 			#return ['null']
 			return [goal_i]
 
 		action_set = []
 		#print(s,pos.values())
 		#print("[obs_i[0],obs_i[1]] pos.values()",[obs_i[0],obs_i[1]],self.pos.values())
-		if str([obs_i[0],obs_i[1]]) in [str(ele) for ele in self.pos.values()]: #s=(0.0, 5.0)
+		if obs_pos in [list(ele) for ele in self.pos.values()]: #s=(0.0, 5.0)
 			#print("it currently at node")
-			node = [k for k, v in self.pos.items() if str(v) == str([obs_i[0],obs_i[1]])][0]  #node 0
+			node = [k for k, v in self.pos.items() if list(v) == obs_pos][0]  #node 0
 			#print("current node",node)
 			for edge in self.G.edges():
 				if node in edge:

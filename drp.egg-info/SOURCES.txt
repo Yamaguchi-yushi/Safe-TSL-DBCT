@@ -11,7 +11,7 @@ drp_env/drp_env.py
 drp_env/drp_env1.py
 drp_env/drp_env_allgoal.py
 drp_env/drp_env_dis.py
-drp_env/drp_envのコピー.py
+drp_env/drp_envのコピー.py
 drp_env/config/DTdefault.yaml
 drp_env/config/default.yaml
 drp_env/map/map_10x10/edge.csv
@@ -33,8 +33,15 @@ drp_env/map/map_aoba01/edge.csv
 drp_env/map/map_aoba01/node.csv
 drp_env/map/map_shibuya/edge.csv
 drp_env/map/map_shibuya/node.csv
-drp_env/map/map_shibuyaのコピー/edge.csv
-drp_env/map/map_shibuyaのコピー/node.csv
+drp_env/map/map_shibuyaのコピー/edge.csv
+drp_env/map/map_shibuyaのコピー/node.csv
+drp_env/reward_model/__init__.py
+drp_env/reward_model/base_reward_model.py
+drp_env/reward_model/LLMrd/__init__.py
+drp_env/reward_model/LLMrd/factor_chat_with_gpt.py
+drp_env/reward_model/LLMrd/factor_reward_decompose.py
+drp_env/reward_model/LLMrd/factor_reward_model.py
+drp_env/reward_model/LLMrd/prompt_template.py
 drp_env/state_repre/__init__.py
 drp_env/state_repre/coordinate.py
 drp_env/state_repre/heu_onehot.py

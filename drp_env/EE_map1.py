@@ -194,16 +194,18 @@ class MapMake():  # マップ生成クラス
 
 	def get_avail_action_fun(self, obs_i, current_start, current_goal, goal_i):  # 利用可能な行動取得
 		#if s==self.pos[goal_i] and goal_i==0:
-		if [obs_i[0],obs_i[1]]==self.pos[goal_i]:  # ゴール到達時
+		obs_pos_check = [float(obs_i[0]), float(obs_i[1])]
+		if obs_pos_check==self.pos[goal_i]:  # ゴール到達時
 			#return ['null']
 			return [goal_i]  # ゴールのみ
 
 		action_set = []  # 行動セット
 		#print(s,pos.values())
 		#print("[obs_i[0],obs_i[1]] pos.values()",[obs_i[0],obs_i[1]],self.pos.values())
-		if str([obs_i[0],obs_i[1]]) in [str(ele) for ele in self.pos.values()]: #ノード上
+		obs_pos = [float(obs_i[0]), float(obs_i[1])]
+		if obs_pos in [list(ele) for ele in self.pos.values()]: #ノード上
 			#print("it currently at node")
-			node = [k for k, v in self.pos.items() if str(v) == str([obs_i[0],obs_i[1]])][0]  # 現在ノード
+			node = [k for k, v in self.pos.items() if list(v) == obs_pos][0]  # 現在ノード
 			#print("current node",node)
 			for edge in self.G.edges():  # エッジ探索
 				if node in edge:
