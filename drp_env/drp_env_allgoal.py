@@ -102,14 +102,13 @@ class DrpEnv(gym.Env):  # DrpEnvクラスの定義（gym.Envを継承）
 		# ゴールとスタートが未設定の場合は毎エピソードランダム生成
 		self.start_ori_array = copy.deepcopy(self.ee_env.input_start_ori_array)  # スタートノード配列
 		self.goal_array = copy.deepcopy(self.ee_env.input_goal_array)  # ゴールノード配列
-		print("self.start_ori_array", self.start_ori_array)  # デバッグ出力
 		if self.start_ori_array == []:
 			self.ee_env.random_start()  # ランダムスタート
 			self.start_ori_array = self.ee_env.start_ori_array  # スタートノード配列
 		if self.goal_array == []:
 			self.ee_env.random_goal()  # ランダムゴール
 			self.goal_array = self.ee_env.goal_array  # ゴールノード配列
-		print("self.start_ori_array after", self.start_ori_array)  # デバッグ出力
+
 
 		# 観測の初期化
 		self.obs = tuple(np.array([self.pos[self.start_ori_array[i]][0], self.pos[self.start_ori_array[i]][1], self.start_ori_array[i], self.goal_array[i]]) for i in range(self.agent_num))  # 観測

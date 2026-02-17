@@ -1251,7 +1251,11 @@ class DrpEnv(gym.Env):
 
 			# ステップ数の更新
 			if hasattr(self, 'total_step_account') and hasattr(self, 'step_account'):
+				prev_million = self.total_step_account // 1_000_000
 				self.total_step_account += self.step_account
+				curr_million = self.total_step_account // 1_000_000
+				if curr_million > prev_million:
+					print(f"[PROGRESS] {self.total_step_account:,} steps ({curr_million}M), Episode: {self.episode_account}")
 
 			# 学習終了判定
 			if (hasattr(self, 'max_train_steps') and
@@ -1382,14 +1386,12 @@ class DrpEnv(gym.Env):
 		# if goal and start are not assigned, randomly generate every episode    
 		self.start_ori_array = copy.deepcopy(self.ee_env.input_start_ori_array)
 		self.goal_array = copy.deepcopy(self.ee_env.input_goal_array)
-		print("self.start_ori_array", self.start_ori_array)
 		if self.start_ori_array == []:
 			self.ee_env.random_start()
 			self.start_ori_array = self.ee_env.start_ori_array
 		if self.goal_array == []:
 			self.ee_env.random_goal()
 			self.goal_array = self.ee_env.goal_array
-		print("self.start_ori_array after", self.start_ori_array)
 
 		#initialize obs
 		self.obs = tuple(np.array([self.pos[self.start_ori_array[i]][0], self.pos[self.start_ori_array[i]][1], self.start_ori_array[i], self.goal_array[i]]) for i in range(self.agent_num))
@@ -1681,7 +1683,7 @@ class DrpEnv(gym.Env):
 				ri_array.append(ri)
 			
 			if self.terminated == [True for _ in range(self.agent_num)]: # all reach goal
-				print("!!!all reach goal!!!")
+				self._log("!!!all reach goal!!!")
 				self.reach_account = 0
 				# info
 				info["goal"] = True
@@ -1689,7 +1691,7 @@ class DrpEnv(gym.Env):
 				self.episode_cost = self._calculate_episode_cost(info)
 				info["cost"] = self.episode_cost
 				info["goal_cost"] = self.episode_cost
-				print("Episode cost:", self.episode_cost)
+				self._log(f"Episode cost: {self.episode_cost}")
 			
 			else:
 				pass
@@ -1699,7 +1701,7 @@ class DrpEnv(gym.Env):
 
 		# Check whether time is over
 		if self.step_account >= self.time_limit:
-			print(f"!!!TIME UP!!! (Step {self.step_account}/{self.time_limit})")
+			self._log(f"!!!TIME UP!!! (Step {self.step_account}/{self.time_limit})")
 			info["timeup"]= True
 			self.terminated = [True for _ in range(self.agent_num)]
 
