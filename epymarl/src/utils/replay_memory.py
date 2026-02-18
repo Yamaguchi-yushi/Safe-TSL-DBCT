@@ -7,10 +7,10 @@ import torch
 # https://github.com/pytorch/tutorials/blob/master/Reinforcement%20(Q-)Learning%20with%20PyTorch.ipynb
 
 Transition = namedtuple(
-    'Transition', ('state', 'action', 'mask', 'reward'))
+    'Transition', ('state', 'action', 'episode_return'))
 
 Transition_e = namedtuple(
-    'Transition_episode', ('states', 'actions', 'masks', 'rewards'))
+    'Transition_episode', ('states', 'actions', 'episode_returns'))
 
 globals()["Transition"] = Transition
 globals()["Transition_episode"] = Transition_e
@@ -36,53 +36,48 @@ class ReplayMemory_episode(object):
         position = (position + 1) % self.capacity
         return position
 
-    def push(self, *args):
-        """Saves a transition."""
-        l = len(args[0])
-        episode = [self.padding(arg, 0) if i!=1 else self.padding(arg, 4) for i, arg in enumerate(args)]
-        self.position = self._push(Transition(*episode), self.memory, self.position, l)
-        if self.reward_norm:
-            self.data.append(Transition_e(*args))
+    def push(self, states, actions, rewards):
+        """Saves an episode. Stores only states, actions, and the scalar episode return."""
+        l = len(states)
+        padded_states = self.padding(states, 0)
+        padded_actions = self.padding(actions, 4)
+        episode_return = np.sum(np.array(rewards))
+        self.position = self._push(
+            Transition(padded_states, padded_actions, episode_return),
+            self.memory, self.position, l
+        )
 
-    def sample_trajectory(self, n_trajectories=128, use_next_state=False):
+    def sample_trajectory(self, n_trajectories=128):
         if len(self.memory) == 0:
             raise ValueError("No episodes available in memory")
-        
+
         if n_trajectories > len(self.memory):
             sample_traj = self.memory.copy()
         else:
             sample_traj = random.sample(self.memory, n_trajectories)
-        
+
         sample_traj, sample_length = zip(*sample_traj)
         episode_length = torch.Tensor(sample_length).long()
-        
+
         samples = Transition_e(*zip(*sample_traj))
-        
+
         states = np.array(samples.states).transpose((0,2,1,3))
         states = torch.from_numpy(states).float()
         actions = np.squeeze(np.array(samples.actions), axis=2).transpose((0,2,1))
         actions = torch.from_numpy(actions)
 
-        rewards = np.array(samples.rewards)
-        episode_return = np.sum(rewards, axis=(1, 2))
+        episode_return = np.array(samples.episode_returns)
         episode_return = torch.from_numpy(episode_return).float()
-        episode_reward = rewards
-        episode_reward = torch.from_numpy(episode_reward).float()
-        
-        if use_next_state:
-            next_states = np.array(samples.next_states).transpose((0,2,1,3))
-            next_states = torch.from_numpy(next_states).float()
-            return states, actions, episode_return, episode_reward, episode_length, next_states
-        else:
-            return states, actions, episode_return, episode_reward, episode_length
+
+        return states, actions, episode_return, episode_length
 
     def reset(self):
         self.data = []
     
     def get_update_data(self):
         data = Transition_e(*zip(*self.data))
-        rewards = np.sum(np.squeeze(np.array(data.rewards), axis=2)[:,:,0], axis=1)
-        return rewards
+        episode_returns = np.array(data.episode_returns)
+        return episode_returns
 
     def shuffle(self):
         random.shuffle(self.memory)

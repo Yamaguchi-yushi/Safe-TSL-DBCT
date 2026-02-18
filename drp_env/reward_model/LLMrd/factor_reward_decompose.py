@@ -19,7 +19,7 @@ class FactorRewardDecomposer(nn.Module):  # 報酬分解器クラスを定義
         super(FactorRewardDecomposer, self).__init__()  # 親クラスの初期化を呼び出し
         self.args = args  # 引数をインスタンス変数に保存
         self.n_agents = args.n_agents  # エージェント数を設定
-        self.device = 'cpu'  # デバイスを設定
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'  # デバイスを設定
         
         # DRP用にディレクトリパスを調整
         if hasattr(args, 'llm_response_dir'):  # llm_response_dir属性が存在する場合

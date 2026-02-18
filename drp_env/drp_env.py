@@ -119,6 +119,9 @@ class DrpEnv(gym.Env):
 
 			self.graph_diameter = self._compute_graph_diameter()
 
+			# 静的obsキャッシュの作成（毎ステップ変化しない部分を1回だけ構築）
+			self._build_static_obs_cache()
+
 			class LaReArgs:
 				def __init__(self, env_instance):
 					self.n_agents = env_instance.agent_num
@@ -193,7 +196,14 @@ class DrpEnv(gym.Env):
 			loss_fn = nn.MSELoss(reduction='mean') # loss function for the reward model
 			lr_reward = 5e-4 # learning rate for the reward model
 			opt = torch.optim.Adam(params=self.reward_model.parameters(), lr=lr_reward, weight_decay=1e-5)
-			self.device = 'cpu'
+			self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+			print(f"🖥️ [DEVICE] Using device: {self.device}")
+			if self.device == 'cuda':
+				print(f"  - GPU: {torch.cuda.get_device_name(0)}")
+				print(f"  - VRAM: {torch.cuda.get_device_properties(0).total_mem / 1024**3:.1f} GB")
+			else:
+				print("  ⚠️ GPU not available, falling back to CPU")
+			self.reward_model.to(self.device)
 			self.train_step = make_train_step(self.reward_model,
 												loss_fn,
 												opt,
@@ -212,7 +222,6 @@ class DrpEnv(gym.Env):
 			self.episode_data = {
 				"x_e" : [],
 				"action_e": [],
-				"mask_e" : [],
 				"reward_e" : [],
 			}
 
@@ -617,7 +626,93 @@ class DrpEnv(gym.Env):
 		])
 		
 		return obs
-	
+
+	def _build_static_obs_cache(self):
+		"""
+		静的obs部分（ノード座標、エッジ情報、グラフ直径、メタ情報）をキャッシュする。
+		これらはエピソード中に変化しないため、1回だけ構築してメモリに保持する。
+		"""
+		node_coordinates_flat = self.get_node_coordinates_flat_array().flatten()
+		edge_info_flat = self.edge_info_cache.flatten()
+		graph_diameter = np.array([self.graph_diameter])
+		meta_info = np.array([self.n_nodes, self.agent_num, len(self.G.edges())], dtype=float)
+
+		self.static_obs_cache = np.concatenate([
+			node_coordinates_flat,
+			edge_info_flat,
+			graph_diameter,
+			meta_info
+		])
+
+		# 動的部分の次元数を計算
+		# 動的部分: agent_location(2N) + agent_goal(N) + other_agents((A-1)*2N) + collision_dist(1) + collision_info(2) + wait_count(1)
+		n = self.n_nodes
+		a = self.agent_num
+		self.dynamic_obs_dim = n * 2 + n + (a - 1) * n * 2 + 1 + 2 + 1
+		self.static_obs_dim = len(self.static_obs_cache)
+
+		print(f"📊 [OBS SPLIT] dynamic_obs_dim={self.dynamic_obs_dim}, static_obs_dim={self.static_obs_dim}, full_obs_dim={self.dynamic_obs_dim + self.static_obs_dim}")
+
+	def _get_lare_dynamic_obs(self, agent_id):
+		"""
+		LARE互換obsの動的部分のみを返す（静的部分は含まない）。
+		メモリ保存用に使用。
+
+		Args:
+			agent_id (int): エージェントID
+
+		Returns:
+			np.array: 動的部分のobs配列
+		"""
+		agent_location = self._extract_agent_location_from_onehot(agent_id)
+		agent_goal = self._extract_agent_goal_from_onehot(agent_id)
+		other_agents_locations = self._get_other_agents_absolute_from_onehot(agent_id)
+		collision_distance = np.array([self.colli_distan_value])
+
+		if hasattr(self, 'current_colliding_pairs') and self.current_colliding_pairs is not None:
+			collision_info = self._convert_colliding_pairs_to_agent_info(self.current_colliding_pairs, agent_id)
+			collision_info_flat = collision_info.flatten().astype(float)
+		else:
+			collision_info_flat = np.zeros(2, dtype=float)
+
+		wait_count = np.array([self.wait_count[agent_id]])
+
+		obs = np.concatenate([
+			agent_location.flatten(),
+			agent_goal.flatten(),
+			other_agents_locations.flatten(),
+			collision_distance.flatten(),
+			collision_info_flat,
+			wait_count,
+		])
+
+		return obs
+
+	def _reconstruct_full_obs(self, dynamic_obs):
+		"""
+		動的obsに静的キャッシュを結合してフルobsを再構成する。
+
+		Args:
+			dynamic_obs (np.ndarray): 動的部分のobs。任意の先頭次元を持てる。
+			                          最後の次元がdynamic_obs_dimであること。
+
+		Returns:
+			np.ndarray: フルobs（動的+静的）
+		"""
+		if isinstance(dynamic_obs, np.ndarray):
+			# 静的部分をブロードキャストして結合
+			static_broadcast = np.broadcast_to(
+				self.static_obs_cache,
+				dynamic_obs.shape[:-1] + self.static_obs_cache.shape
+			)
+			return np.concatenate([dynamic_obs, static_broadcast], axis=-1)
+		else:
+			# torch.Tensor の場合
+			static_tensor = torch.tensor(self.static_obs_cache, dtype=dynamic_obs.dtype, device=dynamic_obs.device)
+			expand_shape = list(dynamic_obs.shape[:-1]) + [self.static_obs_dim]
+			static_broadcast = static_tensor.expand(expand_shape)
+			return torch.cat([dynamic_obs, static_broadcast], dim=-1)
+
 	def _extract_agent_location_from_onehot(self, agent_id):
 		"""
 		エージェントの位置を抽出し、[前の状態, 現在の状態]として結合したnode_num*2次元のフラットなベクトルを返す
@@ -773,17 +868,20 @@ class DrpEnv(gym.Env):
 
 		try:
 			if use_cache and hasattr(self, 'current_state') and self.current_state is not None:
-				current_obs = self.current_state.get(agent_id)
-				if current_obs is None:
+				dynamic_obs = self.current_state.get(agent_id)
+				if dynamic_obs is not None:
+					# 動的obsに静的部分を結合してフルobsを再構成
+					current_obs = np.concatenate([dynamic_obs, self.static_obs_cache])
+				else:
 					current_obs = self._get_lare_compatible_obs(agent_id)
 			else:
 				# 現在の観測を取得
 				current_obs = self._get_lare_compatible_obs(agent_id)
-			
+
 			# 次の観測が提供されていない場合は現在の観測を使用
 			if next_obs is None:
 				next_obs = current_obs
-			
+
 			# LaReシステムに観測を渡して報酬を取得
 			lare_reward = self.lare_decompose.get_reward(
 				obs=current_obs,
@@ -946,55 +1044,54 @@ class DrpEnv(gym.Env):
 				states_list = []
 				actions_list = []
 				return_list = []
-				rewards_list = []
 				length_list = []
 
 				if n_collision > 0:
-					s_states, s_actions, s_return, s_reward, s_length = \
+					s_states, s_actions, s_return, s_length = \
 						self.collision_memory.sample_trajectory(n_trajectories=n_collision)
 					states_list.append(s_states)
 					actions_list.append(s_actions)
 					return_list.append(s_return)
-					rewards_list.append(s_reward)
 					length_list.append(s_length)
 				if n_timeup > 0:
-					s_states, s_actions, s_return, s_reward, s_length = \
+					s_states, s_actions, s_return, s_length = \
 						self.timeup_memory.sample_trajectory(n_trajectories=n_timeup)
 					states_list.append(s_states)
 					actions_list.append(s_actions)
 					return_list.append(s_return)
-					rewards_list.append(s_reward)
 					length_list.append(s_length)
 				if n_goal > 0:
-					s_states, s_actions, s_return, s_reward, s_length = \
+					s_states, s_actions, s_return, s_length = \
 						self.goal_memory.sample_trajectory(n_trajectories=n_goal)
 					states_list.append(s_states)
 					actions_list.append(s_actions)
 					return_list.append(s_return)
-					rewards_list.append(s_reward)
 					length_list.append(s_length)
 				# リストを結合
 				states = np.concatenate(states_list, axis=0)
 				actions = np.concatenate(actions_list, axis=0)
 				episode_return = np.concatenate(return_list, axis=0)
-				episode_reward = np.concatenate(rewards_list, axis=0)
 				episode_length = np.concatenate(length_list, axis=0)
 
 			else:
 			# メモリサイズをチェック
 				memory_size = len(self.memory_e)
-			
+
 				if memory_size < self.reward_model_starts:
 					print(f"  ❌ [SAMPLING] Unified memory insufficient!")
 					print(f"    - Available: {memory_size} episodes")
 					print(f"    - Needed: {self.reward_model_starts}")
 					print(f"  ⏭️ [SKIP UPDATE] Skipping this update - need {self.reward_model_starts - memory_size} more episodes")
 					return
-							
+
 				# メモリから256エピソードをサンプリング
-				states, actions, episode_return, episode_reward, episode_length = \
+				states, actions, episode_return, episode_length = \
 					self.memory_e.sample_trajectory(n_trajectories=self.rewardbatch_size)
 			
+			# 動的statesに静的obsを結合してフルobsを再構成
+			if hasattr(self, 'static_obs_cache'):
+				states = self._reconstruct_full_obs(states)
+
 			# データをテンソルに変換
 			if isinstance(states, torch.Tensor):
 				states = states.clone().detach().float().to(self.device)
@@ -1281,7 +1378,6 @@ class DrpEnv(gym.Env):
 					self.memory_e.push(
 						self.episode_data['x_e'],
 						self.episode_data['action_e'],
-						self.episode_data['mask_e'],
 						self.episode_data['reward_e']
 					)
 				else:
@@ -1290,12 +1386,11 @@ class DrpEnv(gym.Env):
 					else:
 						print("⚠️ [TERMINATION] Termination reason not specified, defaulting to 'unknown'")
 						termination_reason = "unknown"
-					
+
 					if termination_reason == "collision":
 						self.collision_memory.push(
 							self.episode_data['x_e'],
 							self.episode_data['action_e'],
-							self.episode_data['mask_e'],
 							self.episode_data['reward_e']
 						)
 						print(f"💾 [MEMORY] Episode {self.episode_account} saved to COLLISION memory (size: {len(self.collision_memory)})")
@@ -1303,7 +1398,6 @@ class DrpEnv(gym.Env):
 						self.goal_memory.push(
 							self.episode_data['x_e'],
 							self.episode_data['action_e'],
-							self.episode_data['mask_e'],
 							self.episode_data['reward_e']
 						)
 						print(f"💾 [MEMORY] Episode {self.episode_account} saved to GOAL memory (size: {len(self.goal_memory)})")
@@ -1311,7 +1405,6 @@ class DrpEnv(gym.Env):
 						self.timeup_memory.push(
 							self.episode_data['x_e'],
 							self.episode_data['action_e'],
-							self.episode_data['mask_e'],
 							self.episode_data['reward_e']
 						)
 						print(f"💾 [MEMORY] Episode {self.episode_account} saved to TIMEUP memory (size: {len(self.timeup_memory)})")
@@ -1319,7 +1412,6 @@ class DrpEnv(gym.Env):
 						self.collision_memory.push(
 							self.episode_data['x_e'],
 							self.episode_data['action_e'],
-							self.episode_data['mask_e'],
 							self.episode_data['reward_e']
 						)
 						print(f"💾 [MEMORY] Episode {self.episode_account} saved to OTHER memory (size: {len(self.collision_memory)})")
@@ -1333,7 +1425,6 @@ class DrpEnv(gym.Env):
 			self.episode_data = {
 				"x_e" : [],
 				"action_e": [],
-				"mask_e" : [],
 				"reward_e" : [],
 			}
 
@@ -1589,7 +1680,7 @@ class DrpEnv(gym.Env):
 				self.obs_onehot = copy.deepcopy(self.obs_onehot_prepare)
 
 				self.current_state = {
-					agent_id: self._get_lare_compatible_obs(agent_id) for agent_id in range(self.agent_num)
+					agent_id: self._get_lare_dynamic_obs(agent_id) for agent_id in range(self.agent_num)
 				}
 
 				self.obs = obs_backup
@@ -1597,7 +1688,7 @@ class DrpEnv(gym.Env):
 
 				# LARE報酬システムを使用している場合は各エージェントのLARE報酬を計算
 				ri_array = []
-				
+
 				# 修正箇所: _call_lare_reward_system の呼び出し
 				for i in range(self.agent_num):
 					lare_reward = self._call_lare_reward_system(i, next_obs=None, use_cache=True)
@@ -1633,7 +1724,7 @@ class DrpEnv(gym.Env):
 
 			if self.use_lare_reward:
 				self.current_state = {
-					agent_id: self._get_lare_compatible_obs(agent_id) for agent_id in range(self.agent_num)
+					agent_id: self._get_lare_dynamic_obs(agent_id) for agent_id in range(self.agent_num)
 				}
 			
 			
@@ -1725,7 +1816,6 @@ class DrpEnv(gym.Env):
             
 			self.episode_data["x_e"].append(np.array(list(self.current_state.values())))
 			self.episode_data["action_e"].append(np.array(joint_action).reshape(1, -1))
-			self.episode_data["mask_e"].append(masks)
 			self.episode_data["reward_e"].append(np.array(memory_rewards))
 
 		info["distance_from_start"] = list(self.distance_from_start)

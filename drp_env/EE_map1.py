@@ -237,7 +237,6 @@ class MapMake():  # マップ生成クラス
 
 				if distance_ij<5:  # 距離が5未満なら衝突
 					collision_flag = 1  # 衝突フラグ
-					print('!!!collision!!! with agent',i,j)  # 衝突メッセージ
 		
 		return collision_flag  # 衝突フラグ返却
 
