@@ -1140,13 +1140,15 @@ class DrpEnv(gym.Env):
 			step_in_millions = self.total_step_account / 1_000_000
 			steps_str = f"{step_in_millions:.1f}M"
 			
+			is_safe = self.__class__.__name__ == 'SafeEnv'
+			safe_prefix = "SAFE_" if is_safe else ""
 			source_base_name = None
 			if self.use_finetuning:
 				source_base_name = self._get_source_model_base_name()  # ファインチューニング元のベース名を取得
-				filename = f"FT_{source_base_name}_{map_name}_{agent_count}agents_{steps_str}_final.pth"
+				filename = f"{safe_prefix}FT_{map_name}_{agent_count}agents_{steps_str}_{source_base_name}_final.pth"
 			# 最終モデルのファイル名（実験設定情報付き）
 			else:
-				filename = f"{algorithm_name}_LARE_{map_name}_{agent_count}agents_{steps_str}_final.pth"
+				filename = f"{safe_prefix}{algorithm_name}_LARE_{map_name}_{agent_count}agents_{steps_str}_final.pth"
 			
 			save_path = os.path.join(save_dir, filename)
 			
@@ -1219,12 +1221,14 @@ class DrpEnv(gym.Env):
 			steps_in_millions = self.total_step_account / 1_000_000
 			steps_str = f"{steps_in_millions:.1f}M"
 
+			is_safe = self.__class__.__name__ == 'SafeEnv'
+			safe_prefix = "SAFE_" if is_safe else ""
 			source_base_name = None
 			if self.use_finetuning:
 				source_base_name = self._get_source_model_base_name()  # ファインチューニング元のベース名を取得
-				file_name = f"FT_{source_base_name}_{map_name}_{self.agent_num}agents_{steps_str}_checkpoint.pth"
+				file_name = f"{safe_prefix}FT_{map_name}_{self.agent_num}agents_{steps_str}_{source_base_name}_checkpoint.pth"
 			else:
-				file_name = f"{algorithm_name}_LARE_{map_name}_{self.agent_num}agents_{steps_str}_checkpoint.pth"
+				file_name = f"{safe_prefix}{algorithm_name}_LARE_{map_name}_{self.agent_num}agents_{steps_str}_checkpoint.pth"
 			
 			save_path = os.path.join(save_dir, file_name)
 
