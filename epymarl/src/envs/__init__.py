@@ -76,7 +76,8 @@ class FlattenObservation(ObservationWrapper):
 
 
 class _GymmaWrapper(MultiAgentEnv):
-    def __init__(self, key, time_limit, pretrained_wrapper, seed, **kwargs):
+    def __init__(self, key, time_limit, pretrained_wrapper, seed,
+                 common_reward=True, reward_scalarisation="sum", **kwargs):
         self.original_env = gym.make(f"{key}", **kwargs)
         self.episode_limit = time_limit
         self._env = TimeLimit(self.original_env, max_episode_steps=time_limit)

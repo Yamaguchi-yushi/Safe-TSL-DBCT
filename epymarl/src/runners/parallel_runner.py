@@ -219,7 +219,7 @@ class ParallelRunner:
         infos = [cur_stats] + final_env_infos
         cur_stats.update(
             {
-                k: sum(d.get(k, 0) for d in infos)
+                k: sum(d.get(k, 0) for d in infos if isinstance(d.get(k, 0), (int, float)))
                 for k in set.union(*[set(d) for d in infos])
             }
         )
