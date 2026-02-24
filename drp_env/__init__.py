@@ -42,6 +42,26 @@ for an, map_name in product(agent_num, map_list):
         },
     )
 
+#MyWrapper
+
+for an, map_name in product(agent_num, map_list):
+    register(
+        id="drp_safe-{0}agent_{1}-v2".format(an, map_name),
+        #entry_point="gym_vrp.envs:VrpEnv",
+        entry_point="drp_env.SafeMarlEnv.env_wrapper:SafeEnv",
+        kwargs={
+            "agent_num": an,
+            "speed": speed,
+            "start_ori_array": start_ori_array,
+            "goal_array": goal_array,
+            "visu_delay": visu_delay,
+            "time_limit": time_limit,
+            "collision": collision,
+            "map_name": map_name,
+            "reward_list": reward_list,
+        },
+    )
+
 neargridmap_list = [
     "map_3x3",
     "map_5x4",
