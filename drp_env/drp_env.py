@@ -25,14 +25,15 @@ class DrpEnv(gym.Env):
 			collision,
 			map_name="map_3x3",
 			reward_list={"goal": 100, "collision": -10, "wait": -10, "move": -1},
-			use_lare_reward = False,			# LaReを学習に使うか
-			use_lare_training = False,			# Falseの場合はLARE報酬でNN学習、Q値は従来報酬で学習、Trueの場合はLARE報酬でNN学習、Q値もLARE報酬で学習
-			use_pretrained_model = False,		# 事前学習モデルを使うか
-			pretrained_model_name = "FT_QMIX_LARE_map_8x5_2agents_1.1M_map_8x5_3agents_1.1M_final.pth",	# 事前学習モデルのパス
+			use_lare_reward = True,			# LaReを学習に使うか
+			use_lare_training = True,			# Falseの場合はLARE報酬でNN学習、Q値は従来報酬で学習、Trueの場合はLARE報酬でNN学習、Q値もLARE報酬で学習
+			use_pretrained_model = True,		# 事前学習モデルを使うか
+			pretrained_model_name = "QMIX_LARE_map_8x5_2agents_1.2M_final.pth",	# 事前学習モデルのパス
 			use_separete_memory = False,			# 分離メモリを使うか
 			show_debug_logs = False,			# デバッグログをコンソールに表示するか（Trueで表示、Falseで非表示）
 			use_finetuning = False,			# 事前学習モデルを追加学習するか
 			finetuning_model_name = "QMIX_LARE_map_8x5_2agents_1.1M_final.pth",		# 追加学習に使う事前学習モデルのパス
+			lare_training_disabled = False,	# True のとき LaRe 学習を行わず、LareCentralTrainer に委ねる
 		  ):
 		
 		self.agent_num = agent_num
@@ -53,7 +54,8 @@ class DrpEnv(gym.Env):
 
 		self.use_finetuning = use_finetuning
 		self.finetuning_model_name = finetuning_model_name
-		
+		self.lare_training_disabled = lare_training_disabled
+
 		# reward
 		self.r_goal = reward_list["goal"]
 		self.r_coll = reward_list["collision"]
@@ -142,8 +144,8 @@ class DrpEnv(gym.Env):
 									1 + # node_num
 									1 + # agent_num
 									1   # edge_num
-									)  
-					
+									)
+
 					# LARE specific parameters
 					self.only_s = False 				# whether to use only state representation
 					self.llm_response_dir = "responses" # directory to save LLM responses
@@ -860,7 +862,7 @@ class DrpEnv(gym.Env):
 			pos_agenti = [self.obs[agent_id][0], self.obs[agent_id][1]]
 			goal_pos = self.pos[self.goal_array[agent_id]]
 
-			if str(pos_agenti) == str(goal_pos) and pre_pos_agenti != pos_agenti:
+			if [float(x) for x in pos_agenti] == [float(v) for v in goal_pos] and pre_pos_agenti != pos_agenti:
 				self.reach_account += 1
 				self.terminated[agent_id] = True
 				self._record_agent_arrival(agent_id)
@@ -1145,7 +1147,7 @@ class DrpEnv(gym.Env):
 			source_base_name = None
 			if self.use_finetuning:
 				source_base_name = self._get_source_model_base_name()  # ファインチューニング元のベース名を取得
-				filename = f"{safe_prefix}FT_{map_name}_{agent_count}agents_{steps_str}_{source_base_name}_final.pth"
+				filename = f"FT_{safe_prefix}_{map_name}_{agent_count}agents_{steps_str}_{source_base_name}_final.pth"
 			# 最終モデルのファイル名（実験設定情報付き）
 			else:
 				filename = f"{safe_prefix}{algorithm_name}_LARE_{map_name}_{agent_count}agents_{steps_str}_final.pth"
@@ -1226,9 +1228,9 @@ class DrpEnv(gym.Env):
 			source_base_name = None
 			if self.use_finetuning:
 				source_base_name = self._get_source_model_base_name()  # ファインチューニング元のベース名を取得
-				file_name = f"{safe_prefix}FT_{map_name}_{self.agent_num}agents_{steps_str}_{source_base_name}_checkpoint.pth"
+				file_name = f"FT_{safe_prefix}_{map_name}_{self.agent_num}agents_{steps_str}_{source_base_name}_checkpoint.pth"
 			else:
-				file_name = f"{safe_prefix}{algorithm_name}_LARE_{map_name}_{self.agent_num}agents_{steps_str}_checkpoint.pth"
+				file_name = f"{safe_prefix}_{algorithm_name}_LARE_{map_name}_{self.agent_num}agents_{steps_str}_checkpoint.pth"
 			
 			save_path = os.path.join(save_dir, file_name)
 
@@ -1345,10 +1347,77 @@ class DrpEnv(gym.Env):
 	def get_avail_agent_actions(self, agent_id, n_actions):
 		return self._get_avail_agent_actions(agent_id, n_actions)
 
+	def get_lare_model_info(self) -> dict:
+		"""
+		LareCentralTrainer を初期化するための情報を返す。
+		ParallelRunner の初期化時に worker 0 から呼ばれる。
+		"""
+		if not self.use_lare_reward or not hasattr(self, 'lare_decompose') or self.lare_decompose is None:
+			return {'use_lare_reward': False}
+		# GPU テンソルは Pipe で送れないので CPU に移した deepcopy を渡す
+		model_cpu = copy.deepcopy(self.lare_decompose).cpu()
+		return {
+			'use_lare_reward':          True,
+			'lare_decompose':           model_cpu,
+			'n_agents':                 self.agent_num,
+			'static_obs_cache':         getattr(self, 'static_obs_cache', None),
+			'use_separete_memory':      self.use_separete_memory,
+			'buffer_size':              getattr(self, 'buffer_size', 1024),
+			'time_limit':               self.time_limit,
+			'reward_norm':              getattr(self, 'reward_norm', False),
+			'reward_model_update_freq': getattr(self, 'reward_model_update_freq', 128),
+			'evaluation_episodes':      getattr(self, 'evaluation_episodes', 50),
+			'rewardbatch_size':         getattr(self, 'rewardbatch_size', 256),
+			'reward_model_starts':      getattr(self, 'reward_model_starts', 256),
+			'max_train_steps':          getattr(self, 'max_train_steps', None),
+			'map_name':                 self.map_name,
+			'use_finetuning':           self.use_finetuning,
+			'source_base_name':         self._get_source_model_base_name() if self.use_finetuning else None,
+			'is_safe':                  self.__class__.__name__ == 'SafeEnv',
+		}
+
+	def get_lare_episode_data(self) -> dict:
+		"""
+		直前エピソードのデータを返してバッファをクリアする。
+		lare_training_disabled=True のとき reset() が _pending_lare_data に
+		データを格納するので、それを返す。
+		"""
+		data = getattr(self, '_pending_lare_data', None)
+		self._pending_lare_data = None
+		return data
+
+	def set_lare_weights(self, state_dict: dict):
+		"""
+		LareCentralTrainer から受け取った weights をローカルモデルに適用する。
+		"""
+		if not self.use_lare_reward or not hasattr(self, 'lare_decompose') or self.lare_decompose is None:
+			return
+		self.lare_decompose.load_state_dict(state_dict)
+		self.lare_decompose.to(self.device)
+
 	def reset(self):
+		# lare_training_disabled=True のとき: データのみバッファして残り全てをスキップ
+		# メモリ管理・学習・保存は LareCentralTrainer (parallel_runner) が担う
 		if (self.episode_account > 0 and
 	  		self.use_lare_reward and
-			not self.use_pretrained_model):
+			not self.use_pretrained_model and
+			self.lare_training_disabled):
+			termination_reason = getattr(self, 'current_termination_reason', 'unknown')
+			if hasattr(self, 'current_termination_reason'):
+				delattr(self, 'current_termination_reason')
+			self._pending_lare_data = {
+				'x_e':                list(self.episode_data['x_e']),
+				'action_e':           list(self.episode_data['action_e']),
+				'reward_e':           list(self.episode_data['reward_e']),
+				'termination_reason': termination_reason,
+				'step_count':         getattr(self, 'step_account', 0),
+			}
+			self.episode_data = {"x_e": [], "action_e": [], "reward_e": []}
+
+		if (self.episode_account > 0 and
+	  		self.use_lare_reward and
+			not self.use_pretrained_model and
+			not self.lare_training_disabled):
 
 			# ステップ数の更新
 			if hasattr(self, 'total_step_account') and hasattr(self, 'step_account'):
@@ -1763,7 +1832,7 @@ class DrpEnv(gym.Env):
 					goal_pos = self.pos[self.goal_array[i]]
 					pos_str = self._get_position_transition_str(i)
 					
-					if str(pos_agenti)==str(goal_pos): # at goal
+					if [float(x) for x in pos_agenti] == [float(v) for v in goal_pos]: # at goal
 						if pre_pos_agenti!=pos_agenti : #first time to reach goal 
 							self._log(f"   {i}:reward = {ri} {pos_str}")
 						else: # stop at goal
@@ -1950,7 +2019,7 @@ class DrpEnv(gym.Env):
 		pre_pos_agenti = [self.obs_current_chache[i][0],self.obs_current_chache[i][1]]
 		pos_agenti = [self.obs[i][0],self.obs[i][1]]
 
-		if str(pos_agenti)==str(self.pos[self.goal_array[i]]): # at goal
+		if [float(x) for x in pos_agenti] == [float(v) for v in self.pos[self.goal_array[i]]]: # at goal
 			if pre_pos_agenti!=pos_agenti : #first time to reach goal 
 				r_i = self.r_goal
 				self.reach_account += 1
