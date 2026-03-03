@@ -75,7 +75,7 @@ class GymmaWrapper(MultiAgentEnv):
 
         if isinstance(done, Iterable):
             done = all(done)
-        return reward, done, {}
+        return reward, done, self._info if self._info is not None else {}
 
     def get_obs(self):
         """Returns all agent observations in a list"""

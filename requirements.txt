@@ -1,48 +1,81 @@
-# --- Core Data Science ---
-numpy==1.24.4
-scipy==1.10.1
-matplotlib==3.6.3
-pandas
-networkx==3.1
-sympy==1.13.3
+# ============================================================
+# MARL4DRP - drp_new conda environment dependencies
+# Python 3.9, CUDA 12.8 (RTX 5080 verified)
+# Generated from: drp_new_freeze_5080_cu128.txt
+# ============================================================
 
-# --- Reinforcement Learning & Environments ---
-gym==0.21.0
+# --- Core Data Science ---
+numpy==2.0.2
+scipy==1.13.1
+matplotlib==3.9.4
+pandas==2.3.3
+networkx==3.2.1
+sympy==1.14.0
+
+# --- Deep Learning (CUDA 12.8) ---
+# Install with: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+torch==2.7.0+cu128
+torchvision==0.22.0+cu128
+torchaudio==2.7.0+cu128
+
+# --- PAC algorithm extra dependencies ---
+# pip install -r epymarl/pac_requirements.txt
+# einops
+# torch_scatter
+
+# --- Reinforcement Learning Environments ---
 gymnasium==1.1.1
 pygame==2.6.1
 pyglet==1.5.31
-lbforaging==1.1.1
+lbforaging==2.0.0
 rware==2.0.0
-# matrixgames, mpe, SMAC は git 経由でのインストールが推奨されます
+# gym (openai): installed from git - see Installation section
+# SMAC: installed from git - see Installation section
 
-# --- Deep Learning ---
-torch==2.4.1
-torchvision==0.19.1
-tensorboard==2.8.0
+# --- Experiment Tracking & Logging ---
+sacred==0.8.7
+tensorboard==2.20.0
 tensorboard-logger==0.1.0
+tensorboard-data-server==0.7.2
 
 # --- LLM & API ---
-openai==1.93.0
-tiktoken==0.7.0
-pydantic==2.10.6
+openai==2.20.0
+tiktoken==0.12.0
+pydantic==2.12.5
 
 # --- Utilities ---
-PyYAML==5.3.1
-sacred==0.8.7
-tqdm==4.67.1
+PyYAML==6.0.3
+tqdm==4.67.3
 click==8.1.8
-cloudpickle==3.1.1
-absl-py==2.2.2
-GitPython==3.1.44
-snakeviz==2.2.1
+cloudpickle==3.1.2
+absl-py==2.3.1
+GitPython==3.1.46
+snakeviz==2.2.2
+requests==2.32.5
+pillow==11.3.0
+psutil==7.2.2
 
-# --- StarCraft II (If needed) ---
-PySC2==3.0.0
-s2clientprotocol==4.10.1.75800.0
-s2protocol==5.0.14.93333.0
+# --- StarCraft II (optional) ---
+PySC2==4.0.0
+s2clientprotocol==5.0.15.95299.0
+s2protocol==5.0.15.95299.0
 
-# --- Dependencies ---
-typing_extensions==4.13.2
-importlib_metadata==8.5.0
-zipp==3.20.2
-pillow==10.4.0
+# --- HTTP & Networking ---
+httpx==0.28.1
+httpcore==1.0.9
+anyio==4.12.1
+
+# --- Core Dependencies ---
+typing_extensions==4.15.0
+importlib_metadata==8.7.1
+importlib_resources==6.5.2
+packaging==26.0
+zipp==3.23.0
+six==1.17.0
+python-dateutil==2.9.0.post0
+pytz==2025.2
+tzdata==2025.3
+certifi==2026.1.4
+charset-normalizer==3.4.4
+idna==3.11
+urllib3==2.6.3

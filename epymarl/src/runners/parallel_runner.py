@@ -6,6 +6,12 @@ import numpy as np
 from components.episode_buffer import EpisodeBatch
 from envs import REGISTRY as env_REGISTRY
 
+try:
+    from drp_env.lare_central_trainer import LareCentralTrainer
+    _LARE_AVAILABLE = True
+except ImportError:
+    _LARE_AVAILABLE = False
+
 
 # Based (very) heavily on SubprocVecEnv from OpenAI Baselines
 # https://github.com/openai/baselines/blob/master/baselines/common/vec_env/subproc_vec_env.py
@@ -52,6 +58,25 @@ class ParallelRunner:
 
         self.log_train_stats_t = -100000
 
+        # --- LaRe 中央集約トレーナーの初期化 ---
+        self.lare_trainer = None
+        if _LARE_AVAILABLE:
+            self.parent_conns[0].send(("get_lare_model_info", None))
+            model_info = self.parent_conns[0].recv()
+            if model_info and model_info.get('use_lare_reward', False):
+                self.lare_trainer = LareCentralTrainer(model_info)
+                # 全ワーカーの LaRe 学習を無効化し、初期 weights を同期
+                init_state_dict = self.lare_trainer.get_state_dict()
+                for conn in self.parent_conns:
+                    conn.send(("set_lare_training_disabled", True))
+                for conn in self.parent_conns:
+                    conn.recv()
+                for conn in self.parent_conns:
+                    conn.send(("set_lare_weights", init_state_dict))
+                for conn in self.parent_conns:
+                    conn.recv()
+                print(f"✅ [LARE] Centralized training enabled ({len(self.parent_conns)} workers)")
+
     def setup(self, scheme, groups, preprocess, mac):
         self.new_batch = partial(
             EpisodeBatch,
@@ -93,6 +118,27 @@ class ParallelRunner:
             pre_transition_data["obs"].append(data["obs"])
 
         self.batch.update(pre_transition_data, ts=0)
+
+        # --- LaRe 中央集約: エピソードデータ収集 → 学習 → weights 同期 ---
+        if self.lare_trainer is not None:
+            # 1. 各ワーカーから直前エピソードのデータを回収
+            for conn in self.parent_conns:
+                conn.send(("get_lare_episode_data", None))
+            for conn in self.parent_conns:
+                episode_data = conn.recv()
+                if episode_data and len(episode_data.get('x_e', [])) > 0:
+                    self.lare_trainer.add_episode_data(episode_data)
+            # 2. 条件を満たせば中央モデルを更新
+            self.lare_trainer.maybe_update()
+            # 3. 更新した weights を全ワーカーに配布
+            state_dict = self.lare_trainer.get_state_dict()
+            for conn in self.parent_conns:
+                conn.send(("set_lare_weights", state_dict))
+            for conn in self.parent_conns:
+                conn.recv()
+            # 4. 学習完了チェック・チェックポイント保存
+            alg_name = getattr(self.args, 'name', 'unknown')
+            self.lare_trainer.check_and_save(self.t_env, alg_name)
 
         self.t = 0
         self.env_steps_this_run = 0
@@ -322,6 +368,20 @@ def env_worker(remote, env_fn):
             env.render()
         elif cmd == "save_replay":
             env.save_replay()
+        # --- LaRe 中央管理用コマンド ---
+        elif cmd == "get_lare_model_info":
+            info = env.get_lare_model_info() if hasattr(env, 'get_lare_model_info') else {'use_lare_reward': False}
+            remote.send(info)
+        elif cmd == "set_lare_training_disabled":
+            env.lare_training_disabled = data
+            remote.send("ok")
+        elif cmd == "get_lare_episode_data":
+            data_out = env.get_lare_episode_data() if hasattr(env, 'get_lare_episode_data') else None
+            remote.send(data_out)
+        elif cmd == "set_lare_weights":
+            if hasattr(env, 'set_lare_weights'):
+                env.set_lare_weights(data)
+            remote.send("ok")
         else:
             raise NotImplementedError
 

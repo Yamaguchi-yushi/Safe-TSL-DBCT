@@ -1,154 +1,332 @@
-# Drone Routing Problems
+# MARL4DRP - Multi-Agent Reinforcement Learning for Drone Routing Problem
+
+マルチエージェント強化学習（MARL）を用いたドローン経路問題（DRP）のフレームワーク。
+[EPyMARL](https://github.com/uoe-agents/epymarl) をベースに、カスタム DRP 環境を統合しています。
 
 ## Table of Contents
 
-* [About the Project](#about-the-project)
-* [Installation](#installation)
-* [Environment](#environment)
-* [File Structure](#file-structure)
-* [Using Epymarl](#using-epymarl)
+- [About](#about)
+- [Installation](#installation)
+- [Environment](#environment)
+- [Running Experiments](#running-experiments)
+- [Algorithms](#algorithms)
+- [Configuration](#configuration)
+- [File Structure](#file-structure)
+- [Troubleshooting](#troubleshooting)
 
-## About The Project
+---
+
+## About
+
+本プロジェクトは、複数のドローンが地図上の目標地点へ衝突を避けながら移動する **Drone Routing Problem (DRP)** を MARL で解くフレームワークです。
+
+- カスタム Gym 環境 (`drp_env`) による DRP のシミュレーション
+- QMIX / MAPPO などの MARL アルゴリズムを EPyMARL で実行
+- LLM ベースの報酬分解モデル（オプション）
+
+---
 
 ## Installation
+
+### 1. リポジトリのクローン
+
+```bash
+git clone <this-repo-url>
+cd MARL4DRP
 ```
-git clone https://github.com/DING-1994/drp.git
-cd drp
+
+### 2. Conda 環境の作成
+
+```bash
+conda create -n drp_new python=3.9
+conda activate drp_new
+```
+
+### 3. PyTorch のインストール（CUDA 12.8）
+
+```bash
+pip install torch==2.7.0+cu128 torchvision==0.22.0+cu128 torchaudio==2.7.0+cu128 \
+    --index-url https://download.pytorch.org/whl/cu128
+```
+
+> CUDA バージョンに合わせて変更してください。CPU のみの場合は公式サイトを参照。
+
+### 4. 依存パッケージのインストール
+
+```bash
+pip install -r requirements.txt
+```
+
+### 5. gym（OpenAI 版）のインストール
+
+```bash
+pip install git+https://github.com/openai/gym.git@c755d5c35a25ab118746e2ba885894ff66fb8c43
+```
+
+### 6. SMAC のインストール（StarCraft 環境を使う場合）
+
+```bash
+pip install git+https://github.com/oxwhirl/smac.git@d6aab33f76abc3849c50463a8592a84f59a5ef84
+```
+
+### 7. drp_env パッケージのインストール
+
+```bash
 pip install -e .
 ```
 
-## Environment
-how to create environments with the gym framework.
+### 8. PAC アルゴリズムの依存関係（オプション）
+
+```bash
+pip install -r epymarl/pac_requirements.txt
 ```
+
+---
+
+## Environment
+
+### Gym への登録と使い方
+
+```python
 import gym
 import drp_env
-env = gym.make("drp-2agent_map_3x3-v2", state_repre_flag="onehot_fov")
-```
-or
-```
-import gym
-env = gym.make("drp_env:drp-2agent_map_3x3-v2", state_repre_flag="onehot_fov")
+
+env = gym.make("drp_env:drp-5agent_map_10x10-v2", state_repre_flag="onehot")
 ```
 
-### Environment name
+### 環境 ID の形式
+
 ```
-drp-{agent_num}agent_{map_name}-v2
-```
-* agent_num: number of agents,1~6
-* map_name: map name in drp_env/map, map_3x3/map_5x4/map_8x5/map_10x6/map_10x8/map_10x10/map_aoba00/map_aoba01
-* state_repre_flag: kinds of observation, coordinate/onehot/onehot_fov/heu_onehot/heu_onehot_fov
-
-
-### Action
-node number
-
-When taking invalid actions, stop at current position.
-
-
-### Observation
-...
-
-### Reward
-Rewards are set per agentand, determined by reward_list.
-reward_list contains 4 keys, goal/collision/wait/move
-
-default:
-```
-reward_list:
-  goal: 100
-  collision: -10
-  wait: -10
-  move: -1
+drp_env:drp-{agent_num}agent_{map_name}-v2
 ```
 
-* goal
+| パラメータ | 説明 | 選択肢 |
+|---|---|---|
+| `agent_num` | エージェント数 | 1〜29 |
+| `map_name` | マップ名 | `map_3x3`, `map_5x4`, `map_8x5`, `map_10x6`, `map_10x8`, `map_10x10`, `map_aoba00`, `map_aoba01`, `map_shibuya` |
 
-    When an agent reach its goal, ``reward = reward_list["goal”]``.
+### 状態表現（`state_repre_flag`）
 
-* collision
+| フラグ | 説明 |
+|---|---|
+| `coordinate` | 座標ベース |
+| `onehot` | One-hot エンコーディング（全体観測） |
+| `onehot_fov` | One-hot + 視野（部分観測） |
+| `heu_onehot` | ヒューリスティック + One-hot |
+| `heu_onehot_fov` | ヒューリスティック + One-hot + 視野 |
 
-    When agents collide with each other, ``reward = reward_list["collision”] * speed(default:5)``.
+### 行動空間
 
-* wait
+各エージェントの行動は **ノード番号**（隣接ノードへの移動）。
+無効な行動を選択した場合は現在位置に留まる。
 
-    When an agent stops at current position, ``reward = reward_list["wait”] * speed(default:5)``.
+### 報酬
 
-* wait
-
-    When an agent moves, ``reward = reward_list["move”] * speed(default:5)``.
+| 報酬 | デフォルト値 | 説明 |
+|---|---|---|
+| `goal` | +100 | 目標地点に到達 |
+| `collision` | -10 × speed | 他エージェントと衝突 |
+| `wait` | -10 × speed | 同じ位置に停止 |
+| `move` | -1 × speed | 移動（通常ペナルティ） |
 
 ### Info
-* distance_from_start (List of flaot)
 
-    distance from start node of each agents. 
-    
-    When agents stop or collide, distance ``+speed(default:5)``
+| キー | 型 | 説明 |
+|---|---|---|
+| `distance_from_start` | `List[float]` | 各エージェントの出発地点からの距離 |
+| `goal` | `bool` | 全エージェントが目標に到達したか |
+| `collision` | `bool` | 衝突が発生したか |
+| `timeup` | `bool` | 制限時間に達したか（EPyMARL 用） |
 
-* goal (Bool)
+---
 
-    When all agents reach goal, ``goal=True``
+## Running Experiments
 
-* collision (Bool)
+実験はすべて `epymarl/src/` ディレクトリから実行します。
 
-    When agents collide with each other, ``collision=True``
+```bash
+cd epymarl/src
+```
 
-* timeup (Bool)
+または conda 環境を指定して直接実行:
 
-    For epymarl
+```bash
+conda run -n drp_new python3 epymarl/src/main.py --config=<alg> --env-config=gymma with <overrides>
+```
 
+### QMIX の実行例
+
+```bash
+conda run -n drp_new python3 epymarl/src/main.py \
+    --config=qmix \
+    --env-config=gymma \
+    with env_args.key="drp_env:drp-5agent_map_10x10-v2" \
+         env_args.state_repre_flag="onehot" \
+         env_args.time_limit=200
+```
+
+### MAPPO の実行例
+
+```bash
+conda run -n drp_new python3 epymarl/src/main.py \
+    --config=mappo \
+    --env-config=gymma \
+    with env_args.key="drp_env:drp-5agent_map_10x10-v2" \
+         env_args.state_repre_flag="onehot_fov" \
+         env_args.time_limit=200
+```
+
+### 学習済みモデルの評価
+
+```bash
+conda run -n drp_new python3 epymarl/src/main.py \
+    --config=qmix \
+    --env-config=gymma \
+    with env_args.key="drp_env:drp-5agent_map_10x10-v2" \
+         checkpoint_path="epymarl/results/sacred/qmix/<run_id>/models" \
+         evaluate=True
+```
+
+### 結果の保存先
+
+```
+epymarl/results/sacred/{algorithm}/{env_name}/{run_id}/
+```
+
+---
+
+## Algorithms
+
+EPyMARL で利用可能なアルゴリズム:
+
+| カテゴリ | アルゴリズム | `--config` |
+|---|---|---|
+| Value-based | IQL | `iql` |
+| Value-based | VDN | `vdn` |
+| Value-based | QMIX | `qmix` |
+| Value-based | QTRAN | `qtran` |
+| Policy Gradient | IPPO | `ippo` |
+| Policy Gradient | MAPPO | `mappo` |
+| Policy Gradient | IA2C | `ia2c` |
+| Actor-Critic | COMA | `coma` |
+| Actor-Critic | MADDPG | `maddpg` |
+| Pareto | PAC | `pac_ns` |
+
+---
+
+## Configuration
+
+### 主要な設定ファイル
+
+| ファイル | 説明 |
+|---|---|
+| `epymarl/src/config/default.yaml` | デフォルト設定（全アルゴリズム共通） |
+| `epymarl/src/config/algs/qmix.yaml` | QMIX のハイパーパラメータ |
+| `epymarl/src/config/algs/mappo.yaml` | MAPPO のハイパーパラメータ |
+| `epymarl/src/config/envs/gymma.yaml` | 環境設定 |
+
+### コマンドラインでの上書き
+
+Sacred フレームワークにより、`with` 以降にキー=値形式で設定を上書き可能:
+
+```bash
+python3 main.py --config=qmix --env-config=gymma \
+    with lr=0.001 buffer_size=2000 env_args.time_limit=300
+```
+
+---
 
 ## File Structure
-<pre>
-drp
+
+```
+MARL4DRP/
 ├── README.md
-├── drp_env
-│   ├── __init__.py
-│   ├── drp_env.py
-│   ├── EE_map.py
-│   ├── map
-│   └── state_repre
-├── drpload_test.py
-└── for_epymarl
-</pre>
+├── requirements.txt                        # pip 依存パッケージ一覧
+├── drp_new_freeze_5080_cu128.txt           # RTX 5080 / CUDA 12.8 環境の完全フリーズ
+├── setup.py                                # drp_env パッケージ定義
+│
+├── drp_env/                                # カスタム DRP 環境パッケージ
+│   ├── __init__.py                         # Gym への環境登録
+│   ├── drp_env.py                          # メイン環境クラス (DrpEnv)
+│   ├── EE_map.py                           # マップ読み込み・グラフ構築 (NetworkX)
+│   ├── map/                                # CSV マップファイル
+│   ├── state_repre/                        # 状態表現モジュール
+│   │   ├── coordinate.py
+│   │   ├── onehot.py
+│   │   ├── onehot_fov.py
+│   │   ├── heu_onehot.py
+│   │   └── heu_onehot_fov.py
+│   ├── reward_model/                       # 報酬モデル
+│   │   ├── base_reward_model.py
+│   │   ├── mard/                           # MARD 報酬分解
+│   │   ├── arel/                           # AREL 報酬モデル
+│   │   └── LLMrd/                          # LLM ベース報酬分解 (OpenAI API)
+│   ├── SafeMarlEnv/                        # 安全制約ラッパー
+│   └── lare_central_trainer.py             # 中央集権型トレーナー
+│
+└── epymarl/                                # EPyMARL フレームワーク
+    ├── README.md                           # EPyMARL 詳細ドキュメント
+    ├── requirements.txt
+    ├── pac_requirements.txt                # PAC アルゴリズム追加依存
+    └── src/
+        ├── main.py                         # エントリーポイント (Sacred)
+        ├── run.py                          # 実行ループ
+        ├── config/
+        │   ├── default.yaml               # デフォルト設定
+        │   ├── algs/                      # アルゴリズム別設定
+        │   └── envs/                      # 環境別設定
+        ├── components/
+        │   └── episode_buffer.py          # リプレイバッファ
+        ├── controllers/                   # マルチエージェントコントローラ
+        ├── learners/                      # 学習アルゴリズム実装
+        ├── runners/                       # エピソードランナー
+        ├── modules/
+        │   ├── agents/                    # RNN エージェント
+        │   ├── critics/                   # クリティックネットワーク
+        │   └── mixers/                    # 価値関数ミキサー (QMIX 等)
+        └── envs/
+            └── gymma.py                   # Gym 環境ラッパー
+```
 
+---
 
-### Description
+## Troubleshooting
 
+### CUDA Out of Memory エラー
 
-name                              |  description
-----------------------------------|------------------------------------------------------------------------------------
-drp_env                           |  the directory for package __drp_env__
-drpload_test.py                   |  a sample file using drp_env
-for_epymarl                       |  files required to work with epymarl
+**症状**: `torch.OutOfMemoryError: CUDA out of memory` が `episode_buffer.py` で発生
 
-Directories/files in drp_env:
+**原因**: `qmix.yaml` の `buffer_cpu_only: False` によりリプレイバッファが GPU VRAM に配置される
 
-name                              |  description
-----------------------------------|------------------------------------------------------------------------------------
-\_\_init\_\_.py                   |  register environments
-drp_env.py                        |  environment with gym structure
-EE_map.py                         |  process related to network structure
-map                               |  csv files about map information
-state_repre                       |  manage observation of environments
+**解決**: `epymarl/src/config/algs/qmix.yaml` を編集:
 
+```yaml
+buffer_cpu_only: True  # False → True に変更
+```
 
-## Using Epymarl
+VRAM 使用量が大幅に削減される（例: 14.39 GiB → 1.85 GiB）
 
-[epymarl](https://github.com/uoe-agents/epymarl) is a multi agent reinforcement learning framework.
+---
 
-You can use drp_env with epymarl
+### Sacred / モジュールが見つからない
 
-1. install epymarl
-    ```
-    git clone https://github.com/uoe-agents/epymarl
-    ```
+`epymarl/src/` をカレントディレクトリにするか、パスを指定:
 
-2. Replace ``epymarl/src/envs/__init__.py`` with ``drp/for_epymarl/envs/__init__.py``
+```bash
+cd epymarl/src && python3 main.py ...
+# または
+PYTHONPATH=epymarl/src python3 epymarl/src/main.py ...
+```
 
-3. Replace ``epymarl/src/config/envs/gymma.yaml`` with ``drp/for_epymarl/config/gymma.yaml``
+---
 
-4. Example of usin drp_env
+### gym バージョンの競合
 
-    ```
-    python3 src/main.py --config=iql --env-config=gymma with env_args.time_limit=100 env_args.key="drp_env:drp-1agent_map_3x3-v2" env_args.state_repre_flag="onehot"
-    ```
+本プロジェクトは `gym==0.21.x`（OpenAI git 版）と `gymnasium==1.1.1` の両方を使用します。
+インストール順序の問題が生じた場合は再インストールしてください:
+
+```bash
+pip uninstall gym gymnasium -y
+pip install git+https://github.com/openai/gym.git@c755d5c35a25ab118746e2ba885894ff66fb8c43
+pip install gymnasium==1.1.1
+```

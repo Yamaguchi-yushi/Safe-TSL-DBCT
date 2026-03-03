@@ -5,15 +5,15 @@ mask_before_softmax: True
 
 runner: "parallel"
 
-buffer_size: 10
-batch_size_run: 10
-batch_size: 10
+buffer_size: 128 # before: 64
+batch_size_run: 128 # before: 64
+batch_size: 128 # before: 64
 
 # update the target network every {} training steps
 target_update_interval_or_tau: 0.01
 
-lr: 0.0003
-hidden_dim: 128
+lr: 0.0005 # before: 0.0003
+hidden_dim: 256 # before: 128
 
 obs_agent_id: False
 obs_last_action: False
@@ -21,14 +21,15 @@ obs_individual_obs: False
 
 agent_output_type: "pi_logits"
 learner: "ppo_learner"
-entropy_coef: 0.001
+entropy_coef: 0.005 # before: 0.001
 use_rnn: True
 standardise_returns: False
 standardise_rewards: True
-q_nstep: 5 # 1 corresponds to normal r + gammaV
+q_nstep: 10 # before: 5 # 1 corresponds to normal r + gammaV
 critic_type: "cv_critic"
-epochs: 4
+epochs: 8 # before: 4
 eps_clip: 0.2
 name: "mappo"
+common_reward: True
 
 # t_max: 20050000

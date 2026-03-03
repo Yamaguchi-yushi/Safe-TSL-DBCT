@@ -202,7 +202,7 @@ class DrpEnv(gym.Env):
 			print(f"🖥️ [DEVICE] Using device: {self.device}")
 			if self.device == 'cuda':
 				print(f"  - GPU: {torch.cuda.get_device_name(0)}")
-				print(f"  - VRAM: {torch.cuda.get_device_properties(0).total_mem / 1024**3:.1f} GB")
+				print(f"  - VRAM: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
 			else:
 				print("  ⚠️ GPU not available, falling back to CPU")
 			self.reward_model.to(self.device)
