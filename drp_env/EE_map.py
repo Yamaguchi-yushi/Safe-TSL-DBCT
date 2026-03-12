@@ -230,7 +230,7 @@ class MapMake():
 
 		return action_set
 
-	def collision_detect(self, obs_prepare):
+	def collision_detect(self, obs_prepare, colli_distan_value=5.0):
 		collision_flag = 0
 		for i in range(self.agent_num-1):
 			pos_i = [obs_prepare[i][0], obs_prepare[i][1]]
@@ -238,19 +238,20 @@ class MapMake():
 			for j in range(i+1, self.agent_num):
 				pos_j = [obs_prepare[j][0], obs_prepare[j][1]]
 				#print("pos_j",j,pos_j)
-				distance_ij = math.dist(pos_i, pos_j) 
+				distance_ij = math.dist(pos_i, pos_j)
 				#print( "distance i j",distance_ij)
 
-				if distance_ij<5:
+				if distance_ij < colli_distan_value:
 					collision_flag = 1
-		
+
 		return collision_flag
-	
-	def get_collision_agents(self, obs_prepare):
+
+	def get_collision_agents(self, obs_prepare, colli_distan_value=5.0):
 		"""
 		 Detect colliding agent pairs based on their positions.
 		 Args:
 			 obs_prepare (list): List of agent observations, where each observation contains position information.
+			 colli_distan_value (float): Distance threshold for collision detection.
 		 Returns:
 			 list: A list of pairs, where each pair contains the indices of two agents that have collided.
 				   Example: [[0, 2], [3, 4]]
@@ -261,9 +262,9 @@ class MapMake():
 			for j in range(i + 1, self.agent_num):
 				pos_j = [obs_prepare[j][0], obs_prepare[j][1]]
 				distance_ij = math.dist(pos_i, pos_j)
-				if distance_ij < 5: # 衝突判定（距離の閾値は必要に応じて調整）
+				if distance_ij < colli_distan_value:
 					colliding_pairs.append([i, j])
-		
+
 		return colliding_pairs
 """
 if __name__ == '__main__':

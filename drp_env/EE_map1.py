@@ -224,7 +224,7 @@ class MapMake():  # マップ生成クラス
 
 		return action_set  # 行動セット返却
 
-	def collision_detect(self, obs_prepare):  # 衝突判定
+	def collision_detect(self, obs_prepare, colli_distan_value=5.0):  # 衝突判定
 		collision_flag = 0  # 衝突フラグ
 		for i in range(self.agent_num-1):  # 全エージェントペア
 			pos_i = [obs_prepare[i][0], obs_prepare[i][1]]  # エージェントi位置
@@ -235,9 +235,9 @@ class MapMake():  # マップ生成クラス
 				distance_ij = math.dist(pos_i, pos_j)  # 距離計算
 				#print( "distance i j",distance_ij)
 
-				if distance_ij<5:  # 距離が5未満なら衝突
+				if distance_ij < colli_distan_value:  # 距離が閾値未満なら衝突
 					collision_flag = 1  # 衝突フラグ
-		
+
 		return collision_flag  # 衝突フラグ返却
 
 """

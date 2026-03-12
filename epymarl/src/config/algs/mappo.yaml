@@ -5,6 +5,7 @@ mask_before_softmax: True
 
 runner: "parallel"
 
+buffer_cpu_only: True          # バッファをCPU RAMに配置（VRAM節約）
 buffer_size: 128 # before: 64
 batch_size_run: 128 # before: 64
 batch_size: 128 # before: 64
