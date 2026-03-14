@@ -100,6 +100,8 @@ class EpisodeRunner:
         cur_stats.update({k: cur_stats.get(k, 0) + (int(env_info.get(k, 0)) if isinstance(env_info.get(k, 0), (int, float)) else 0) for k in set(cur_stats) | set(env_info)})
         cur_stats["n_episodes"] = 1 + cur_stats.get("n_episodes", 0)
         cur_stats["ep_length"] = self.t + cur_stats.get("ep_length", 0)
+        if env_info.get("goal_cost") is not None:
+            cur_stats["goal_n_episodes"] = 1 + cur_stats.get("goal_n_episodes", 0)
 
         if not test_mode:
             self.t_env += self.t
@@ -122,6 +124,12 @@ class EpisodeRunner:
         returns.clear()
 
         for k, v in stats.items():
-            if k != "n_episodes":
+            if k in ("n_episodes", "goal_n_episodes"):
+                continue
+            if k == "goal_cost":
+                goal_n = stats.get("goal_n_episodes", 0)
+                if goal_n > 0:
+                    self.logger.log_stat(prefix + k + "_mean", v / goal_n, self.t_env)
+            else:
                 self.logger.log_stat(prefix + k + "_mean" , v/stats["n_episodes"], self.t_env)
         stats.clear()
