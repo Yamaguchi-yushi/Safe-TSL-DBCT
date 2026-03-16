@@ -27,8 +27,8 @@ class DrpEnv(gym.Env):
 			reward_list={"goal": 100, "collision": -10, "wait": -10, "move": -1},
 			use_lare_reward = True,			# LaReを学習に使うか
 			use_lare_training = True,			# Falseの場合はLARE報酬でNN学習、Q値は従来報酬で学習、Trueの場合はLARE報酬でNN学習、Q値もLARE報酬で学習
-			use_pretrained_model = False,		# 事前学習モデルを使うか
-			pretrained_model_name = "QMIX_LARE_map_aoba00_2agents_2.1M_final.pth",	# 事前学習モデルのパス
+			use_pretrained_model = True,		# 事前学習モデルを使うか
+			pretrained_model_name = "FT_QMIX_LARE_map_8x5_2agents_1.1M_map_aoba00_2agents_1.1M_final.pth",	# 事前学習モデルのパス
 			use_separete_memory = False,			# 分離メモリを使うか
 			show_debug_logs = False,			# デバッグログをコンソールに表示するか（Trueで表示、Falseで非表示）
 			use_finetuning = False,			# 事前学習モデルを追加学習するか
