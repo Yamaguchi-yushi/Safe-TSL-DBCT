@@ -8,7 +8,7 @@ evaluation_epsilon: 0.05    # ← ここを追加
 # --- Runner & Replay ---
 runner: "episode"
 buffer_size: 5000              # ← OOM対策で削減（10x10マップ用）
-buffer_cpu_only: True          # ← バッファをCPU RAMに配置（VRAM節約）
+buffer_cpu_only: True          # バッファをCPU RAMに配置（VRAM節約・速度改善）
 target_update_interval_or_tau: 500  # ← ターゲットネットワーク更新頻度調整
 
 # --- Network & Optimization ---

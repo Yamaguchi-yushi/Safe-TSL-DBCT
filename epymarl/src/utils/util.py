@@ -288,7 +288,7 @@ def make_train_step(model, loss_fn, optimizer, n_agent, device, env = None, reg=
             raise
         
         # Returns the loss
-        print(f"  ✅ Training step completed\n")
+        #print(f"  ✅ Training step completed\n")
         return loss.item()
     
     # Returns the function that will be called inside the train loop

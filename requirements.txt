@@ -1,7 +1,13 @@
 # ============================================================
-# MARL4DRP - drp_new conda environment dependencies
-# Python 3.9, CUDA 12.8 (RTX 5080 verified)
+# MARL4DRP - Docker / pip requirements
+# Python 3.9, PyTorch 2.7.0, CUDA 12.8
 # Generated from: drp_new_freeze_5080_cu128.txt
+#
+# NOTE: The following are installed separately (see Dockerfile):
+#   - torch / torchvision / torchaudio  (--index-url https://download.pytorch.org/whl/cu128)
+#   - gym==0.21.0                        (git+https://github.com/openai/gym.git)
+#   - SMAC                               (git+https://github.com/oxwhirl/smac.git)
+#   - drp (local)                        (pip install -e .)
 # ============================================================
 
 # --- Core Data Science ---
@@ -11,37 +17,57 @@ matplotlib==3.9.4
 pandas==2.3.3
 networkx==3.2.1
 sympy==1.14.0
+mpmath==1.3.0
 
-# --- Deep Learning (CUDA 12.8) ---
-# Install with: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
-torch==2.7.0+cu128
-torchvision==0.22.0+cu128
-torchaudio==2.7.0+cu128
-
-# --- PAC algorithm extra dependencies ---
-# pip install -r epymarl/pac_requirements.txt
-# einops
-# torch_scatter
-
-# --- Reinforcement Learning Environments ---
+# --- RL Environments ---
 gymnasium==1.1.1
 pygame==2.6.1
 pyglet==1.5.31
 lbforaging==2.0.0
 rware==2.0.0
-# gym (openai): installed from git - see Installation section
-# SMAC: installed from git - see Installation section
 
 # --- Experiment Tracking & Logging ---
 sacred==0.8.7
 tensorboard==2.20.0
 tensorboard-logger==0.1.0
 tensorboard-data-server==0.7.2
+Markdown==3.9
+Werkzeug==3.1.5
 
-# --- LLM & API ---
+# --- LLM / API ---
 openai==2.20.0
 tiktoken==0.12.0
 pydantic==2.12.5
+pydantic_core==2.41.5
+annotated-types==0.7.0
+typing-inspection==0.4.2
+jiter==0.13.0
+distro==1.9.0
+
+# --- StarCraft II ---
+PySC2==4.0.0
+s2clientprotocol==5.0.15.95299.0
+s2protocol==5.0.15.95299.0
+mpyq==0.2.5
+portpicker==1.6.0
+googleapis-common-protos==1.72.0
+grpcio==1.78.0
+protobuf==3.20.3
+immutabledict==4.3.0
+websocket-client==1.9.0
+
+# --- DeepMind ---
+dm-env==1.6
+dm-env-rpc==1.1.6
+dm-tree==0.1.8
+
+# --- HTTP & Networking ---
+httpx==0.28.1
+httpcore==1.0.9
+anyio==4.12.1
+h11==0.16.0
+sniffio==1.3.1
+exceptiongroup==1.3.1
 
 # --- Utilities ---
 PyYAML==6.0.3
@@ -50,22 +76,38 @@ click==8.1.8
 cloudpickle==3.1.2
 absl-py==2.3.1
 GitPython==3.1.46
+gitdb==4.0.12
+smmap==5.0.2
 snakeviz==2.2.2
 requests==2.32.5
 pillow==11.3.0
 psutil==7.2.2
+munch==4.0.0
+deepdiff==8.6.1
+jsonpickle==4.1.1
+orderly-set==5.5.0
+mock==5.2.0
+colorama==0.4.6
+docopt-ng==0.9.0
+wrapt==1.17.3
+py-cpuinfo==9.0.0
+sk-video==1.1.10
+fsspec==2025.10.0
+filelock==3.19.1
+Jinja2==3.1.6
+MarkupSafe==2.1.5
+tornado==6.5.4
+regex==2026.1.15
+enum34==1.1.10
 
-# --- StarCraft II (optional) ---
-PySC2==4.0.0
-s2clientprotocol==5.0.15.95299.0
-s2protocol==5.0.15.95299.0
+# --- Matplotlib extras ---
+contourpy==1.3.0
+cycler==0.12.1
+fonttools==4.60.2
+kiwisolver==1.4.7
+pyparsing==3.3.2
 
-# --- HTTP & Networking ---
-httpx==0.28.1
-httpcore==1.0.9
-anyio==4.12.1
-
-# --- Core Dependencies ---
+# --- Core Python ---
 typing_extensions==4.15.0
 importlib_metadata==8.7.1
 importlib_resources==6.5.2
@@ -79,3 +121,4 @@ certifi==2026.1.4
 charset-normalizer==3.4.4
 idna==3.11
 urllib3==2.6.3
+Farama-Notifications==0.0.4

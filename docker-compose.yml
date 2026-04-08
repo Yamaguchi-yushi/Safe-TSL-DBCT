@@ -1,0 +1,22 @@
+services:
+  marl4drp:
+    build: .
+    image: marl4drp:latest
+    container_name: marl4drp
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    volumes:
+      # 実験結果をホストと共有 (コンテナ削除後も残る)
+      - ./epymarl/results:/workspace/epymarl/results
+    stdin_open: true
+    tty: true
+    ipc: host
+    shm_size: '8gb'

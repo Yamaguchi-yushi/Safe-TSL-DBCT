@@ -28,11 +28,12 @@ class DrpEnv(gym.Env):
 			use_lare_reward = True,			# LaReを学習に使うか
 			use_lare_training = True,			# Falseの場合はLARE報酬でNN学習、Q値は従来報酬で学習、Trueの場合はLARE報酬でNN学習、Q値もLARE報酬で学習
 			use_pretrained_model = True,		# 事前学習モデルを使うか
-			pretrained_model_name = "FT_QMIX_LARE_map_8x5_2agents_1.1M_map_aoba00_2agents_1.1M_final.pth",	# 事前学習モデルのパス
+			pretrained_model_name = "FT_Safe_Safe_QMIX_LARE_map_8x5_2agents_1.1M_map_shibuya_2agents_1.1M_final.pth",	# 事前学習モデルのパス
 			use_separete_memory = False,			# 分離メモリを使うか
 			show_debug_logs = False,			# デバッグログをコンソールに表示するか（Trueで表示、Falseで非表示）
 			use_finetuning = False,			# 事前学習モデルを追加学習するか
 			finetuning_model_name = "QMIX_LARE_map_8x5_2agents_1.1M_final.pth",		# 追加学習に使う事前学習モデルのパス
+			lare_freeze_steps = 5000000,			# このステップ数以降はLaReのNNを更新しない（-1で無効、常に更新）
 		  ):
 		
 		self.agent_num = agent_num
@@ -53,6 +54,7 @@ class DrpEnv(gym.Env):
 
 		self.use_finetuning = use_finetuning
 		self.finetuning_model_name = finetuning_model_name
+		self.lare_freeze_steps = lare_freeze_steps
 
 		# reward
 		self.r_goal = reward_list["goal"]
@@ -115,10 +117,12 @@ class DrpEnv(gym.Env):
 			import_path = os.path.join(os.path.dirname(__file__), 'reward_model', 'factor_reward_decomposer.py')
 			print(f"🔧 Importing FactorRewardDecomposer from {import_path}")
 
-			# サブプロセス（spawnワーカー）ではCPUを使用してVRAMを節約
+			# サブプロセス（env_worker）ではCPUを使用してVRAM節約
 			import multiprocessing
-			_in_subprocess = multiprocessing.current_process().name != 'MainProcess'
-			self.device = 'cpu' if _in_subprocess else ('cuda' if torch.cuda.is_available() else 'cpu')
+			if multiprocessing.current_process().name != 'MainProcess':
+				self.device = 'cpu'
+			else:
+				self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 			self.edge_info_cache = self._precompute_edge_info()
 
@@ -225,6 +229,9 @@ class DrpEnv(gym.Env):
 			self.training_start_time = time.time()
 			self.checkpoint_saved = False  # チェックポイント保存済みフラグ
 			self.total_update_count = 0
+			self.lare_frozen = False  # LaRe NNフリーズフラグ
+			if self.lare_freeze_steps > 0:
+				print(f"🧊 [LARE FREEZE] LaRe NN will be frozen after {self.lare_freeze_steps:,} steps.")
 
 			self.episode_data = {
 				"x_e" : [],
@@ -1451,15 +1458,21 @@ class DrpEnv(gym.Env):
 					total_memory_size = len(self.memory_e)
 
 				if total_memory_size >= self.reward_model_starts:
-					print(f"🔍 [EVALUATION CHECK] Episode {self.episode_account}: Sufficient data (have {total_memory_size}, need {self.reward_model_starts})")
 					self.is_evaluation_period = True
 					self.current_evaluation_count = 0
-				else:
-					print(f"⚠️ [EVALUATION SKIP] Episode {self.episode_account}: No enough data for evaluation (have {total_memory_size}, need {self.reward_model_starts})")
+
+			# LaRe NNフリーズ判定
+			if (not getattr(self, 'lare_frozen', False) and
+				self.lare_freeze_steps > 0 and
+				self.total_step_account >= self.lare_freeze_steps):
+				self.lare_frozen = True
+				self.is_evaluation_period = False
+				self.current_evaluation_count = 0
+				print(f"🧊 [LARE FROZEN] LaRe NN updates stopped at step {self.total_step_account:,} (freeze_steps={self.lare_freeze_steps:,})")
 
 			# 更新期間中の処理
-			if getattr(self, 'is_evaluation_period', False):
-				print(f"🔄 [EVALUATION UPDATE] Episode {self.episode_account}: Update {self.current_evaluation_count + 1}/{self.evaluation_episodes}")
+			if getattr(self, 'is_evaluation_period', False) and not getattr(self, 'lare_frozen', False):
+				#print(f"🔄 [EVALUATION UPDATE] Episode {self.episode_account}: Update {self.current_evaluation_count + 1}/{self.evaluation_episodes}")
 
 				self.perform_episode_update()
 
@@ -1467,7 +1480,7 @@ class DrpEnv(gym.Env):
 
 				# 更新期間終了判定
 				if self.current_evaluation_count >= self.evaluation_episodes:
-					print(f"✅ [EVALUATION COMPLETE] Episode {self.episode_account}: Completed {self.evaluation_episodes} updates")
+					#print(f"✅ [EVALUATION COMPLETE] Episode {self.episode_account}: Completed {self.evaluation_episodes} updates")
 					self.total_update_count += 1
 
 					if self.total_update_count % 70 == 0:
@@ -1482,8 +1495,8 @@ class DrpEnv(gym.Env):
 					self.is_evaluation_period = False
 					self.current_evaluation_count = 0
 			else:
-				if self.episode_account > 0:
-					print(f"📝 [NOMAL EPISODE] Episode {self.episode_account}: Data collected, no update")
+				#print(f"⏭️ [NO UPDATE] Episode {self.episode_account}: Not in evaluation period")
+				pass
 
 		# if goal and start are not assigned, randomly generate every episode    
 		self.start_ori_array = copy.deepcopy(self.ee_env.input_start_ori_array)
@@ -2018,7 +2031,7 @@ class DrpEnv(gym.Env):
 				else:
 					print(f"⚠️ [COST CALCULATION] Agent {i} has invalid arrival step: {self.agent_arrival_steps[i]}")
 					cost += self.time_limit
-			return cost
+			return int(cost)
 		
 		print("⚠️ [COST CALCULATION] Episode did not end with goal, collision, or timeup. Assigning maximum cost.")
 		return self.agent_num * self.time_limit

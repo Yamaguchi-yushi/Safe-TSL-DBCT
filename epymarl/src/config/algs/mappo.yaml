@@ -6,9 +6,9 @@ mask_before_softmax: True
 runner: "parallel"
 
 buffer_cpu_only: True          # バッファをCPU RAMに配置（VRAM節約）
-buffer_size: 128 # before: 64
-batch_size_run: 128 # before: 64
-batch_size: 128 # before: 64
+buffer_size: 64 # before: 64
+batch_size_run: 64 # before: 64
+batch_size: 64 # before: 64
 
 # update the target network every {} training steps
 target_update_interval_or_tau: 0.01

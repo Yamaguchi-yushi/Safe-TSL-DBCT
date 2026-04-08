@@ -275,9 +275,15 @@ class ParallelRunner:
 
         for k, v in stats.items():
             if k != "n_episodes":
-                self.logger.log_stat(
-                    prefix + k + "_mean", v / stats["n_episodes"], self.t_env
-                )
+                if k == "goal_cost" and stats.get("goal", 0) > 0:
+                    # goal_cost_mean = ゴールエピソードあたりのコスト
+                    self.logger.log_stat(
+                        prefix + k + "_mean", v / stats["goal"], self.t_env
+                    )
+                else:
+                    self.logger.log_stat(
+                        prefix + k + "_mean", v / stats["n_episodes"], self.t_env
+                    )
         stats.clear()
 
 

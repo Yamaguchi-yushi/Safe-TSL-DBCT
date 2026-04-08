@@ -1,0 +1,28 @@
+# Git
+.git
+.gitignore
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.egg-info
+*.egg
+.eggs/
+
+# 実験結果 (volume でマウントするため不要)
+epymarl/results/
+
+# LLM応答キャッシュ
+drp_env/reward_model/LLMrd/responses/
+
+# バックアップ・一時ファイル
+*.bak
+*.log
+*.tmp
+
+# Docker 自身
+Dockerfile
+docker-compose.yml
+.dockerignore
