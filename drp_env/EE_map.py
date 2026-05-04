@@ -242,7 +242,7 @@ class MapMake():
 
 				if distance_ij<5:
 					collision_flag = 1
-					print('!!!collision!!! with agent',i,j)
+					# print('!!!collision!!! with agent',i,j)
 		
 		return collision_flag
 	

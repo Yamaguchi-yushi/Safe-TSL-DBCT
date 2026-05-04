@@ -186,6 +186,7 @@ def run_sequential(args, logger):
     last_test_T = -args.test_interval - 1
     last_log_T = 0
     model_save_time = 0
+    last_progress_T = -1_000_000
 
     start_time = time.time()
     last_time = start_time
@@ -254,6 +255,20 @@ def run_sequential(args, logger):
                     )
 
         episode += args.batch_size_run
+
+        if (runner.t_env - last_progress_T) >= 1_000_000:
+            elapsed = time.time() - start_time
+            progress = runner.t_env / args.t_max * 100
+            logger.console_logger.info(
+                "[ Progress ] {:.1f}% | Steps: {:,} / {:,} | Elapsed: {} | Remaining: {}".format(
+                    progress,
+                    runner.t_env,
+                    args.t_max,
+                    time_str(elapsed),
+                    time_left(start_time, 0, runner.t_env, args.t_max),
+                )
+            )
+            last_progress_T = runner.t_env
 
         if (runner.t_env - last_log_T) >= args.log_interval:
             logger.log_stat("episode", episode, runner.t_env)

@@ -25,14 +25,14 @@ class DrpEnv(gym.Env):
 			collision,
 			map_name="map_3x3",
 			reward_list={"goal": 100, "collision": -10, "wait": -10, "move": -1},
-			use_lare_reward = True,			# LaReを学習に使うか
-			use_lare_training = True,			# Falseの場合はLARE報酬でNN学習、Q値は従来報酬で学習、Trueの場合はLARE報酬でNN学習、Q値もLARE報酬で学習
-			use_pretrained_model = True,		# 事前学習モデルを使うか
-			pretrained_model_name = "FT_QMIX_LARE_map_8x5_2agents_1.1M_map_8x5_3agents_1.1M_final.pth",	# 事前学習モデルのパス
+			use_lare_reward = False,			# LaReを学習に使うか
+			use_lare_training = False,			# Falseの場合はLARE報酬でNN学習、Q値は従来報酬で学習、Trueの場合はLARE報酬でNN学習、Q値もLARE報酬で学習
+			use_pretrained_model = False,		# 事前学習モデルを使うか
+			pretrained_model_name = "_QMIX_LARE_map_aoba00_4agents_2.0M_checkpoint.pth",	# 事前学習モデルのパス
 			use_separete_memory = False,			# 分離メモリを使うか
 			show_debug_logs = False,			# デバッグログをコンソールに表示するか（Trueで表示、Falseで非表示）
 			use_finetuning = False,			# 事前学習モデルを追加学習するか
-			finetuning_model_name = "QMIX_LARE_map_8x5_2agents_1.1M_final.pth",		# 追加学習に使う事前学習モデルのパス
+			finetuning_model_name = "Safe_QMIX_LARE_map_8x5_2agents_1.1M_final.pth",		# 追加学習に使う事前学習モデルのパス
 		  ):
 		
 		self.agent_num = agent_num
@@ -181,8 +181,8 @@ class DrpEnv(gym.Env):
 				print("✅ Using single replay memory for all reward factors.")
 
 			self.current_state = None 			# current state for the LARE system
-			self.reward_model_update_freq = 128 # frequency of reward model updates
-			self.evaluation_episodes = 50 		# number of episodes to evaluate the reward model
+			self.reward_model_update_freq = 256 # frequency of reward model updates
+			self.evaluation_episodes = 16 		# number of episodes to evaluate the reward model
 			self.current_evaluation_count = 0 	# current evaluation counter
 			self.evaluation_base_episode = None # base episode number for evaluation
 			self.is_evaluation_period = False   # evaluation period flag
@@ -1348,7 +1348,7 @@ class DrpEnv(gym.Env):
 					total_memory_size = len(self.memory_e)
 
 				if total_memory_size >= self.reward_model_starts:
-					print(f"🔍 [EVALUATION CHECK] Episode {self.episode_account}: Sufficient data (have {total_memory_size}, need {self.reward_model_starts})")
+					# print(f"🔍 [EVALUATION CHECK] Episode {self.episode_account}: Sufficient data (have {total_memory_size}, need {self.reward_model_starts})")
 					self.is_evaluation_period = True
 					self.current_evaluation_count = 0
 				else:
@@ -1356,7 +1356,7 @@ class DrpEnv(gym.Env):
 
 			# 更新期間中の処理
 			if getattr(self, 'is_evaluation_period', False):
-				print(f"🔄 [EVALUATION UPDATE] Episode {self.episode_account}: Update {self.current_evaluation_count + 1}/{self.evaluation_episodes}")
+				#print(f"🔄 [EVALUATION UPDATE] Episode {self.episode_account}: Update {self.current_evaluation_count + 1}/{self.evaluation_episodes}")
 
 				self.perform_episode_update()
 
@@ -1364,7 +1364,7 @@ class DrpEnv(gym.Env):
 
 				# 更新期間終了判定
 				if self.current_evaluation_count >= self.evaluation_episodes:
-					print(f"✅ [EVALUATION COMPLETE] Episode {self.episode_account}: Completed {self.evaluation_episodes} updates")
+					#print(f"✅ [EVALUATION COMPLETE] Episode {self.episode_account}: Completed {self.evaluation_episodes} updates")
 					self.total_update_count += 1
 
 					if self.total_update_count % 70 == 0:
@@ -1380,19 +1380,20 @@ class DrpEnv(gym.Env):
 					self.current_evaluation_count = 0
 			else:
 				if self.episode_account > 0:
-					print(f"📝 [NOMAL EPISODE] Episode {self.episode_account}: Data collected, no update")
+					#print(f"📝 [NOMAL EPISODE] Episode {self.episode_account}: Data collected, no update")
+					pass
 
 		# if goal and start are not assigned, randomly generate every episode    
 		self.start_ori_array = copy.deepcopy(self.ee_env.input_start_ori_array)
 		self.goal_array = copy.deepcopy(self.ee_env.input_goal_array)
-		print("self.start_ori_array", self.start_ori_array)
+		self._log(f"self.start_ori_array {self.start_ori_array}")
 		if self.start_ori_array == []:
 			self.ee_env.random_start()
 			self.start_ori_array = self.ee_env.start_ori_array
 		if self.goal_array == []:
 			self.ee_env.random_goal()
 			self.goal_array = self.ee_env.goal_array
-		print("self.start_ori_array after", self.start_ori_array)
+		self._log(f"self.start_ori_array after {self.start_ori_array}")
 
 		#initialize obs
 		self.obs = tuple(np.array([self.pos[self.start_ori_array[i]][0], self.pos[self.start_ori_array[i]][1], self.start_ori_array[i], self.goal_array[i]]) for i in range(self.agent_num))
@@ -1684,7 +1685,7 @@ class DrpEnv(gym.Env):
 				ri_array.append(ri)
 			
 			if self.terminated == [True for _ in range(self.agent_num)]: # all reach goal
-				print("!!!all reach goal!!!")
+				self._log("!!!all reach goal!!!")
 				self.reach_account = 0
 				# info
 				info["goal"] = True
@@ -1692,7 +1693,7 @@ class DrpEnv(gym.Env):
 				self.episode_cost = self._calculate_episode_cost(info)
 				info["cost"] = self.episode_cost
 				info["goal_cost"] = self.episode_cost
-				print("Episode cost:", self.episode_cost)
+				self._log(f"Episode cost: {self.episode_cost}")
 			
 			else:
 				pass
@@ -1702,7 +1703,7 @@ class DrpEnv(gym.Env):
 
 		# Check whether time is over
 		if self.step_account >= self.time_limit:
-			print(f"!!!TIME UP!!! (Step {self.step_account}/{self.time_limit})")
+			self._log(f"!!!TIME UP!!! (Step {self.step_account}/{self.time_limit})")
 			info["timeup"]= True
 			self.terminated = [True for _ in range(self.agent_num)]
 
@@ -1908,7 +1909,7 @@ class DrpEnv(gym.Env):
 		if info.get("collision", False) or info.get("timeup", False):
 			cost = self.agent_num * self.time_limit
 			print(f"✅ [Episode{self.episode_account}] Total cost due to {'collision' if info.get('collision', False) else 'timeup'}: {cost}")
-			return cost
+			return int(cost)
 		
 		if info.get("goal", False):
 			cost = 0
@@ -1918,7 +1919,7 @@ class DrpEnv(gym.Env):
 				else:
 					print(f"⚠️ [COST CALCULATION] Agent {i} has invalid arrival step: {self.agent_arrival_steps[i]}")
 					cost += self.time_limit
-			return cost
+			return int(cost)
 		
 		print("⚠️ [COST CALCULATION] Episode did not end with goal, collision, or timeup. Assigning maximum cost.")
 		return self.agent_num * self.time_limit
