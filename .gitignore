@@ -1,2 +1,31 @@
-# LLM応答キャッシュ（重い・変更が多いので除外）
-drp_env/reward_model/LLMrd/responses/
+# Results
+results/
+epymarl/results/
+
+# Saved models
+epymarl/src/saved_models/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# macOS
+.DS_Store
+
+# Copy files
+*のコピー*
+*のコピー2*
+
+# Experimental/temporary files
+drp_env/EE_map1.py
+drp_env/drp_env1.py
+drp_env/drp_env_allgoal.py
+drp_env/drp_env_dis.py
+
+# Zip files
+*.zip
+
+# Conda / pip
+*.egg
