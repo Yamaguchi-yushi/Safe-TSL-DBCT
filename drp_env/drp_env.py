@@ -28,12 +28,12 @@ class DrpEnv(gym.Env):
 			use_lare_reward = True,			# LaReを学習に使うか
 			use_lare_training = True,			# Falseの場合はLARE報酬でNN学習、Q値は従来報酬で学習、Trueの場合はLARE報酬でNN学習、Q値もLARE報酬で学習
 			use_pretrained_model = True,		# 事前学習モデルを使うか
-			pretrained_model_name = "FT_Safe_Safe_QMIX_LARE_map_8x5_2agents_1.1M_map_shibuya_2agents_1.1M_final.pth",	# 事前学習モデルのパス
+			pretrained_model_name = "FT__map_aoba01_2agents_1.1M_QMIX_LARE_map_8x5_2agents_1.1M_final.pth",	# 事前学習モデルのパス
 			use_separete_memory = False,			# 分離メモリを使うか
 			show_debug_logs = False,			# デバッグログをコンソールに表示するか（Trueで表示、Falseで非表示）
 			use_finetuning = False,			# 事前学習モデルを追加学習するか
-			finetuning_model_name = "QMIX_LARE_map_8x5_2agents_1.1M_final.pth",		# 追加学習に使う事前学習モデルのパス
-			lare_freeze_steps = 5000000,			# このステップ数以降はLaReのNNを更新しない（-1で無効、常に更新）
+			finetuning_model_name = "FT__map_aoba01_2agents_1.1M_QMIX_LARE_map_8x5_2agents_1.1M_final.pth",		# 追加学習に使う事前学習モデルのパス
+			lare_freeze_steps = -1,			# このステップ数以降はLaReのNNを更新しない（-1で無効、常に更新）
 		  ):
 		
 		self.agent_num = agent_num
@@ -1165,7 +1165,11 @@ class DrpEnv(gym.Env):
 				filename = f"{safe_prefix}{algorithm_name}_LARE_{map_name}_{agent_count}agents_{steps_str}_final.pth"
 			
 			save_path = os.path.join(save_dir, filename)
-			
+
+			if os.path.exists(save_path):
+				print(f"⚠️ [FINAL SAVE] File already exists, skipping to preserve existing model: {filename}")
+				return save_path
+
 			# 学習時間の計算
 			training_duration = time.time() - self.training_start_time
 			
@@ -1245,6 +1249,10 @@ class DrpEnv(gym.Env):
 				file_name = f"{safe_prefix}_{algorithm_name}_LARE_{map_name}_{self.agent_num}agents_{steps_str}_checkpoint.pth"
 			
 			save_path = os.path.join(save_dir, file_name)
+
+			if os.path.exists(save_path):
+				print(f"⚠️ [CHECKPOINT] File already exists, skipping to preserve existing model: {file_name}")
+				return save_path
 
 			training_duration = time.time() - self.training_start_time
 			save_data = {
