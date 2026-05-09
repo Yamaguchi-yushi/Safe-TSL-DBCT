@@ -224,12 +224,14 @@ class ParallelRunner:
         infos = [cur_stats] + final_env_infos
         cur_stats.update(
             {
-                k: sum(d.get(k, 0) for d in infos if isinstance(d.get(k, 0), (int, float)))
+                k: sum(d.get(k) or 0 for d in infos)
                 for k in set.union(*[set(d) for d in infos])
             }
         )
         cur_stats["n_episodes"] = self.batch_size + cur_stats.get("n_episodes", 0)
         cur_stats["ep_length"] = sum(episode_lengths) + cur_stats.get("ep_length", 0)
+        goal_n_from_infos = sum(1 for d in final_env_infos if d.get("goal_cost") is not None)
+        cur_stats["goal_n_episodes"] = goal_n_from_infos + cur_stats.get("goal_n_episodes", 0)
 
         cur_returns.extend(episode_returns)
 
@@ -274,16 +276,16 @@ class ParallelRunner:
         returns.clear()
 
         for k, v in stats.items():
-            if k != "n_episodes":
-                if k == "goal_cost" and stats.get("goal", 0) > 0:
-                    # goal_cost_mean = ゴールエピソードあたりのコスト
-                    self.logger.log_stat(
-                        prefix + k + "_mean", v / stats["goal"], self.t_env
-                    )
-                else:
-                    self.logger.log_stat(
-                        prefix + k + "_mean", v / stats["n_episodes"], self.t_env
-                    )
+            if k in ("n_episodes", "goal_n_episodes"):
+                continue
+            if k == "goal_cost":
+                goal_n = stats.get("goal_n_episodes", 0)
+                if goal_n > 0:
+                    self.logger.log_stat(prefix + k + "_mean", v / goal_n, self.t_env)
+            else:
+                self.logger.log_stat(
+                    prefix + k + "_mean", v / stats["n_episodes"], self.t_env
+                )
         stats.clear()
 
 

@@ -205,7 +205,7 @@ def run_sequential(args, logger):
             episode_sample = episode_sample[:, :max_ep_t]
 
             if episode_sample.device != args.device:
-                episode_sample = episode_sample.to(args.device)
+                episode_sample.to(args.device)
 
             learner.train(episode_sample, runner.t_env, episode)
 

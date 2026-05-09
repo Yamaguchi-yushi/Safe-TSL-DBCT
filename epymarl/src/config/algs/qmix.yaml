@@ -1,36 +1,36 @@
-# --- Exploration ---
+# --- QMIX specific parameters ---
+
+# use epsilon greedy action selector
 action_selector: "epsilon_greedy"
 epsilon_start: 1.0
 epsilon_finish: 0.05
-epsilon_anneal_time: 100000    # ← ゆっくり減らして探索期間を延長
-evaluation_epsilon: 0.05    # ← ここを追加
+epsilon_anneal_time: 50000
+evaluation_epsilon: 0.0
 
-# --- Runner & Replay ---
 runner: "episode"
-buffer_size: 5000              # ← OOM対策で削減（10x10マップ用）
-buffer_cpu_only: True          # バッファをCPU RAMに配置（VRAM節約・速度改善）
-target_update_interval_or_tau: 500  # ← ターゲットネットワーク更新頻度調整
 
-# --- Network & Optimization ---
-lr: 0.0005                       # ← 学習率を少し上げて収束速度向上を試す
-hidden_dim: 128                # ← 隠れ層ユニット数を増やして表現力アップ
-use_rnn: False                 # ← 繰り返し構造が必要なら True に切り替え
+buffer_size: 5000
 
-# 入力に付加情報を加えることで安定化
-obs_agent_id: False            # ← True から False に変更
-obs_last_action: False          # ← True から False に変更
+# update the target network every {} episodes
+target_update_interval_or_tau: 200
 
-# --- QMIX mixer ---
-mixer: "qmix"
-mixing_embed_dim: 64           # ← ミキサー内部の埋め込み次元を増加
-hypernet_layers: 2             # ← 2 から 1 に変更
-hypernet_embed: 128            # ← ハイパーネットの幅を拡大
 
-# --- その他 ---
+obs_agent_id: True
+obs_last_action: False
+obs_individual_obs: False
+
+
+# use the Q_Learner to train
 standardise_returns: False
 standardise_rewards: True
+
 agent_output_type: "q"
 learner: "q_learner"
 double_q: True
+mixer: "qmix"
+use_rnn: False
+mixing_embed_dim: 32
+hypernet_layers: 2
+hypernet_embed: 64
 
 name: "qmix"
