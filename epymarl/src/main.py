@@ -14,7 +14,7 @@ import yaml
 from run import run
 
 SETTINGS["CAPTURE_MODE"] = (
-    "fd"  # set to "no" if you want to see stdout/stderr in console
+    "no"  # "fd" captures subprocess stdout (hides LaRe init logs); "no" shows all output
 )
 logger = get_logger()
 
