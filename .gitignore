@@ -4,6 +4,7 @@ epymarl/results/
 
 # Saved models
 epymarl/src/saved_models/
+policy/models/
 
 # LLM response cache (runtime-generated)
 drp_env/reward_model/LLMrd/responses/
