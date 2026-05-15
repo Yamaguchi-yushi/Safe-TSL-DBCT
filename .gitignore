@@ -35,3 +35,6 @@ drp_env/drp_env_dis.py
 
 # Conda / pip
 *.egg
+
+# Cost calculation output
+Yamaguchi.json
