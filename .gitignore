@@ -5,6 +5,12 @@ epymarl/results/
 # Saved models
 epymarl/src/saved_models/
 
+# LLM response cache (runtime-generated)
+drp_env/reward_model/LLMrd/responses/
+
+# Removed (do not track)
+drp_env/reward_model/LLMrd/pre_fallback_functions/
+
 # Python
 __pycache__/
 *.pyc
