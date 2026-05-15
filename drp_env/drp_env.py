@@ -28,7 +28,7 @@ class DrpEnv(gym.Env):
 			use_lare_reward = False,			# LaReを学習に使うか
 			use_lare_training = False,			# Falseの場合はLARE報酬でNN学習、Q値は従来報酬で学習、Trueの場合はLARE報酬でNN学習、Q値もLARE報酬で学習
 			use_pretrained_model = False,		# 事前学習モデルを使うか
-			pretrained_model_name = "_QMIX_LARE_map_aoba00_4agents_2.0M_checkpoint.pth",	# 事前学習モデルのパス
+			pretrained_model_name = "Safe_QMIX_LARE_map_3x3_3agents_0.6M_final.pth",	# 事前学習モデルのパス
 			use_separete_memory = False,			# 分離メモリを使うか
 			show_debug_logs = False,			# デバッグログをコンソールに表示するか（Trueで表示、Falseで非表示）
 			use_finetuning = False,			# 事前学習モデルを追加学習するか
@@ -181,8 +181,8 @@ class DrpEnv(gym.Env):
 				print("✅ Using single replay memory for all reward factors.")
 
 			self.current_state = None 			# current state for the LARE system
-			self.reward_model_update_freq = 256 # frequency of reward model updates
-			self.evaluation_episodes = 16 		# number of episodes to evaluate the reward model
+			self.reward_model_update_freq = 128 # frequency of reward model updates
+			self.evaluation_episodes = 50 		# number of episodes to evaluate the reward model
 			self.current_evaluation_count = 0 	# current evaluation counter
 			self.evaluation_base_episode = None # base episode number for evaluation
 			self.is_evaluation_period = False   # evaluation period flag

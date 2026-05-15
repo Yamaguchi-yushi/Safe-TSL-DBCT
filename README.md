@@ -8,6 +8,7 @@
 * [Environment](#environment)
 * [File Structure](#file-structure)
 * [Using Epymarl](#using-epymarl)
+* [Cost Calculation](#cost-calculation)
 * [Training Parameters](#training-parameters)
 
 ## About the Project
@@ -55,26 +56,30 @@ git clone https://github.com/Yamaguchi-yushi/MARL4DRP.git
 cd MARL4DRP
 ```
 
-### 2. Create and activate a conda environment
+### 2. Run the install script
 
-```bash
-conda create -n env_name python=3.9
-conda activate env_name
-```
-
-> Replace `env_name` with any name you like (e.g. `drp_env`).
-> After activation, you should see `(env_name)` at the beginning of your terminal prompt.
-
-### 3. Install all dependencies
-
-Make sure you are in the root directory of this repository (the folder containing `install.sh`), then run:
+`install.sh` creates a conda environment (Python 3.8) and installs all dependencies in one step.
 
 ```bash
 bash install.sh
 ```
 
+> By default, the environment name is `drp`. To use a different name, pass it as an argument:
+>
+> ```bash
+> bash install.sh my_env
+> ```
+>
 > **Note:** Warnings about `conda-libmamba-solver` can be safely ignored.
 > `bash` is available by default on Mac and Linux. On Windows, use Git Bash or WSL.
+
+### 3. Activate the environment
+
+```bash
+conda activate drp
+```
+
+After activation, you should see `(drp)` at the beginning of your terminal prompt.
 
 ## Environment
 
@@ -152,10 +157,19 @@ MARL4DRP
 │   ├── drp_env.py
 │   ├── EE_map.py
 │   ├── map
-│   └── state_repre
+│   ├── state_repre
+│   └── SafeMarlEnv
 ├── drpload_test.py
 ├── for_epymarl
-└── epymarl
+├── epymarl
+├── calculate_cost.py
+├── problem
+│   └── problems.py
+└── policy
+    ├── __init__.py
+    ├── policy.py
+    ├── run_policy.py
+    └── models
 ```
 
 Name                              |  Description
@@ -165,6 +179,9 @@ drpload\_test.py                  |  a sample file using drp\_env
 for\_epymarl                      |  files required to work with epymarl
 epymarl                           |  multi-agent RL framework (epymarl v1.0.0)
 install.sh                        |  installation script for all dependencies
+calculate\_cost.py                |  cost evaluation script for a trained policy on benchmark problems
+problem                           |  benchmark problem definitions used by cost evaluation
+policy                            |  trained policy loader and model files
 
 Directories/files in drp\_env:
 
@@ -175,6 +192,7 @@ drp\_env.py                       |  environment with gym structure
 EE\_map.py                        |  process related to network structure
 map                               |  csv files about map information
 state\_repre                      |  manage observation of environments
+SafeMarlEnv                       |  safety-controlled environment wrapper (collision avoidance)
 
 ## Using Epymarl
 
@@ -198,6 +216,31 @@ Config  | Algorithm
 `iql`   | Independent Q-Learning
 `qmix`  | QMIX
 `vdn`   | Value Decomposition Networks
+
+
+## Cost Calculation
+
+`calculate_cost.py` evaluates a trained policy on a set of benchmark problems and outputs a per-problem score plus a final aggregated cost.
+
+### Required setup
+
+1. Place the trained model files (`{map_name}_{agent_num}.th`) under `policy/models/`.
+2. Make sure the problems you want to evaluate are defined in `problem/problems.py`.
+
+### Run
+
+From the repository root:
+
+```bash
+python calculate_cost.py
+```
+
+The script writes the per-problem scores and final cost to `<TEAM_NAME>.json`.
+
+### Notes
+
+* The default environment ID used in `calculate_cost.py` is `drp_safe-...`, which applies safety-controlled action correction (collision avoidance) at execution time.
+* The script detects goal arrival via `reward[i] == 100` and collision via `reward[i] == -50`. If you use LaRe-decomposed rewards during training, disable LaRe-style rewards at evaluation time by passing `use_lare_reward=False` to `gym.make` so that the original reward values are returned.
 
 
 ## Training Parameters
